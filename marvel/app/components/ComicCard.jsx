@@ -1,115 +1,5 @@
-// import React, { useRef } from "react";
-// import {
-//   View,
-//   Text,
-//   Image,
-//   TouchableOpacity,
-//   StyleSheet
-// } from "react-native";
-// import { FontAwesome } from "@expo/vector-icons";
-// import { TapGestureHandler } from "react-native-gesture-handler";
-
-// // Helper to force HTTPS on thumbnails
-// const getSecureImageUrl = (thumbnail) => {
-//   if (!thumbnail) return "";
-//   const path = thumbnail.path.startsWith("http:")
-//     ? thumbnail.path.replace("http:", "https:")
-//     : thumbnail.path;
-//   return `${path}.${thumbnail.extension}`;
-// };
-
-// export default function ComicCard({
-//   item,
-//   onOpen,
-//   onToggleSave,
-//   isSaved
-// }) {
-//   const singleTapRef = useRef();
-//   const doubleTapRef = useRef();
-
-//   return (
-//     <View style={{ width: 160, marginRight: 16 }}>
-//       {/* wrap image area only */}
-//       <View style={styles.cardWrapper}>
-//         <TapGestureHandler
-//           ref={doubleTapRef}
-//           numberOfTaps={2}
-//           onActivated={() => onToggleSave(item)}
-//         >
-//           <TapGestureHandler
-//             ref={singleTapRef}
-//             numberOfTaps={1}
-//             waitFor={doubleTapRef}
-//             onActivated={() => onOpen(item)}
-//           >
-//             <View style={styles.cardImageContainer}>
-//               <Image
-//                 source={{ uri: getSecureImageUrl(item.thumbnail) }}
-//                 style={styles.cardImage}
-//                 resizeMode="contain"
-//               />
-//               <View style={styles.overlay} />
-//             </View>
-//           </TapGestureHandler>
-//         </TapGestureHandler>
-
-//         {/* Heart icon sits on top, but outside the gesture handler */}
-//         <TouchableOpacity
-//           onPress={() => onToggleSave(item)}
-//           style={styles.heartIconContainer}
-//         >
-//           {isSaved(item.id) ? (
-//             <FontAwesome name="heart" size={24} color="red" />
-//           ) : (
-//             <FontAwesome name="heart-o" size={24} color="red" />
-//           )}
-//         </TouchableOpacity>
-//       </View>
-
-//       {/* Title is outside any gesture handler */}
-//       <Text style={styles.cardTitle}>{item.title}</Text>
-//     </View>
-//   );
-// }
-
-// const styles = StyleSheet.create({
-//   cardWrapper: {
-//     position: "relative",
-//     width: "100%",
-//     height: 240,
-//     borderRadius: 8,
-//     overflow: "hidden"
-//   },
-//   cardImageContainer: {
-//     flex: 1
-//   },
-//   cardImage: {
-//     width: "100%",
-//     height: "100%"
-//   },
-//   overlay: {
-//     ...StyleSheet.absoluteFillObject,
-//     backgroundColor: "rgba(0,0,0,0.25)"
-//   },
-//   heartIconContainer: {
-//     position: "absolute",
-//     top: 8,
-//     right: 8,
-//     zIndex: 10  // ensure it's above the overlay
-//   },
-//   cardTitle: {
-//     marginTop: 8,
-//     textAlign: "center",
-//     fontWeight: "600",
-//     color: "#2D3748"
-//   }
-// });
-
-
-
-// ComicCard.js
 import React, { useRef } from "react";
-import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, Image, TouchableOpacity } from "react-native";
 import { FontAwesome } from "@expo/vector-icons";
 import { TapGestureHandler } from "react-native-gesture-handler";
 
@@ -130,13 +20,12 @@ const getSecureImageUrl = (thumbnail) => {
 export default function ComicCard({ item, onOpen, onToggleSave, isSaved }) {
   const singleTapRef = useRef();
   const doubleTapRef = useRef();
-
-  // always non-empty
   const uri = getSecureImageUrl(item.thumbnail);
 
   return (
-    <View style={{ width: 160, marginRight: 16 }}>
-      <View style={styles.cardWrapper}>
+    <View className="w-40 mr-4">
+      <View className="relative w-full h-60 rounded-lg overflow-hidden">
+        {/* Gesture handlers for single & double tap */}
         <TapGestureHandler
           ref={doubleTapRef}
           numberOfTaps={2}
@@ -148,63 +37,35 @@ export default function ComicCard({ item, onOpen, onToggleSave, isSaved }) {
             waitFor={doubleTapRef}
             onActivated={() => onOpen(item)}
           >
-            <View style={styles.cardImageContainer}>
+            <View className="flex-1">
+              {/* Ensure image always renders at full size */}
               <Image
                 source={{ uri }}
-                style={styles.cardImage}
-                resizeMode="contain"
+                style={{ width: "100%", height: "100%" }}
+                resizeMode="cover"
               />
-              <View style={styles.overlay} />
             </View>
           </TapGestureHandler>
         </TapGestureHandler>
 
+        {/* Heart icon with its own dark backdrop */}
         <TouchableOpacity
           onPress={() => onToggleSave(item)}
-          style={styles.heartIconContainer}
+          className="absolute top-2 right-2 z-10"
         >
-          {isSaved(item.id) ? (
-            <FontAwesome name="heart" size={24} color="red" />
-          ) : (
-            <FontAwesome name="heart-o" size={24} color="red" />
-          )}
+          <View className="bg-black bg-opacity-50 rounded-full p-1">
+            {isSaved(item.id) ? (
+              <FontAwesome name="heart" size={20} color="white" />
+            ) : (
+              <FontAwesome name="heart-o" size={20} color="white" />
+            )}
+          </View>
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.cardTitle}>{item.title}</Text>
+      <Text className="mt-2 text-center font-semibold text-gray-800">
+        {item.title}
+      </Text>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  cardWrapper: {
-    position: "relative",
-    width: "100%",
-    height: 240,
-    borderRadius: 8,
-    overflow: "hidden",
-  },
-  cardImageContainer: {
-    flex: 1,
-  },
-  cardImage: {
-    width: "100%",
-    height: "100%",
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.25)",
-  },
-  heartIconContainer: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    zIndex: 10,
-  },
-  cardTitle: {
-    marginTop: 8,
-    textAlign: "center",
-    fontWeight: "600",
-    color: "#2D3748",
-  },
-});

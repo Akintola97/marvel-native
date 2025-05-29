@@ -6,7 +6,6 @@ import {
   Image,
   Text,
   TouchableOpacity,
-  StyleSheet,
   Dimensions,
 } from "react-native";
 import axios from "axios";
@@ -18,29 +17,25 @@ import EntertainmentCard from "../components/EntertainmentCard";
 
 const screenWidth = Dimensions.get("window").width;
 const playerWidth = screenWidth - 32;
-const playerHeight = playerWidth * (9 / 16);
+const playerHeight = (playerWidth * 9) / 16;
 
 export default function Entertainment() {
   const [entertainment, setEntertainment] = useState([]);
   const [showAll, setShowAll] = useState(false);
-  const [visibleEntertainment, setVisible] = useState(10);
-
+  const [visible, setVisible] = useState(10);
   const [open, setOpen] = useState(false);
-  const [selectedEntertainment, setSelected] = useState(null);
+  const [selected, setSelected] = useState(null);
   const [recommendations, setRecommendations] = useState([]);
-  const [recommendationsLoading, setRecoLoading] = useState(false);
+  const [recoLoading, setRecoLoading] = useState(false);
   const [trailerKey, setTrailerKey] = useState(null);
 
   const { savedItems, toggleSaveItem } = useContext(SavedContext);
 
-  // Fetch main entertainment list
   useEffect(() => {
     (async () => {
       try {
         const { data } = await axios.get(
-          // "https://hero.boltluna.io/api/entertainment"
           `${process.env.EXPO_PUBLIC_BASE_URL}/entertainment`
-
         );
         setEntertainment(data);
       } catch (err) {
@@ -49,8 +44,7 @@ export default function Entertainment() {
     })();
   }, []);
 
-  const isEntertainmentSaved = (id) =>
-    savedItems.some((item) => item.id === id);
+  const isSaved = (id) => savedItems.some((item) => item.id === id);
 
   const toggleView = () => {
     setShowAll((prev) => {
@@ -60,16 +54,12 @@ export default function Entertainment() {
     });
   };
 
-  // Always normalize to "movie" or "tv" and pick the right TMDB id
   const fetchTrailer = async (item) => {
     const tmdbId = item.id ?? item.details?.id;
-    if (!tmdbId) {
-      console.warn("Skipping trailer fetch—no TMDB id");
-      return;
-    }
-    const lowerType = (item.type ?? "").toLowerCase();
-    const mediaType = lowerType.includes("tv") ? "tv" : "movie";
-
+    if (!tmdbId) return;
+    const mediaType = (item.type ?? "").toLowerCase().includes("tv")
+      ? "tv"
+      : "movie";
     try {
       const res = await axios.post("https://hero.boltluna.io/api/trailer", {
         media_type: mediaType,
@@ -81,7 +71,6 @@ export default function Entertainment() {
     }
   };
 
-  // Fetch AI recommendations, then flatten out TMDB details into top-level fields
   const fetchRecommendations = async (item) => {
     setRecoLoading(true);
     try {
@@ -95,20 +84,12 @@ export default function Entertainment() {
           },
         }
       );
-
-      // flatten: pull id, overview, poster_path off of .details if needed
-      const recs = data.recommendations.map((r) => {
-        const tmdbId = r.id ?? r.details?.id;
-        const overview = r.overview ?? r.details?.overview;
-        const posterPath = r.poster_path ?? r.details?.poster_path;
-        return {
-          ...r,
-          id: tmdbId,
-          overview,
-          poster_path: posterPath,
-        };
-      });
-
+      const recs = data.recommendations.map((r) => ({
+        ...r,
+        id: r.id ?? r.details?.id,
+        overview: r.overview ?? r.details?.overview,
+        poster_path: r.poster_path ?? r.details?.poster_path,
+      }));
       setRecommendations(recs);
     } catch (err) {
       console.error("Failed to fetch recommendations:", err);
@@ -134,11 +115,11 @@ export default function Entertainment() {
   };
 
   return (
-    <View style={{ padding: 16, flex: 1, backgroundColor: "#F7FAFC" }}>
+    <View className="p-4 flex-1 bg-gray-100">
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>
-          Browse Featured <Text style={styles.titleBold}>Titles</Text>
+      <View className="flex-row justify-between items-center">
+        <Text className="text-2xl font-semibold text-gray-600">
+          Browse Featured <Text className="font-bold text-black">Titles</Text>
         </Text>
         <Button mode="contained" onPress={toggleView}>
           {showAll ? "View Less" : "View All"}
@@ -147,18 +128,18 @@ export default function Entertainment() {
 
       {/* Main list */}
       <FlatList
-        data={entertainment.slice(0, visibleEntertainment)}
+        data={entertainment.slice(0, visible)}
         keyExtractor={(item) => item.id.toString()}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 16, marginTop: 16 }}
-        ItemSeparatorComponent={() => <View style={{ width: 16 }} />}
+        ItemSeparatorComponent={() => <View className="w-4" />}
         renderItem={({ item }) => (
           <EntertainmentCard
             item={item}
             onOpen={handleOpen}
             onToggleSave={toggleSaveItem}
-            isSaved={isEntertainmentSaved}
+            isSaved={isSaved}
           />
         )}
       />
@@ -168,22 +149,16 @@ export default function Entertainment() {
         <Dialog
           visible={open}
           onDismiss={handleClose}
-          style={{ width: "90%", alignSelf: "center" }}
+          className="w-11/12 self-center"
         >
-          <View style={styles.modalHeader}>
+          <View className="flex-row justify-between items-center px-4 pt-4">
             <Dialog.Title>
-              {selectedEntertainment?.title || selectedEntertainment?.name}
+              {selected?.title || selected?.name}
             </Dialog.Title>
-            {selectedEntertainment && (
-              <TouchableOpacity
-                onPress={() => toggleSaveItem(selectedEntertainment)}
-              >
+            {selected && (
+              <TouchableOpacity onPress={() => toggleSaveItem(selected)}>
                 <FontAwesome
-                  name={
-                    isEntertainmentSaved(selectedEntertainment.id)
-                      ? "heart"
-                      : "heart-o"
-                  }
+                  name={isSaved(selected.id) ? "heart" : "heart-o"}
                   size={24}
                   color="red"
                 />
@@ -192,7 +167,7 @@ export default function Entertainment() {
           </View>
 
           <Dialog.Content>
-            {selectedEntertainment && (
+            {selected && (
               <ScrollView>
                 {trailerKey ? (
                   <YoutubePlayer
@@ -201,42 +176,40 @@ export default function Entertainment() {
                     play={false}
                     videoId={trailerKey}
                   />
-                ) : selectedEntertainment.poster_path ? (
+                ) : selected.poster_path ? (
                   <Image
                     source={{
-                      uri: `https://image.tmdb.org/t/p/original${selectedEntertainment.poster_path}`,
+                      uri: `https://image.tmdb.org/t/p/original${selected.poster_path}`,
                     }}
-                    style={[
-                      styles.modalImage,
-                      { width: playerWidth, height: playerHeight },
-                    ]}
+                    className="self-center rounded-lg mb-4"
+                    style={{ width: playerWidth, height: playerHeight }}
                     resizeMode="cover"
                   />
                 ) : (
                   <View
+                    className="self-center justify-center items-center rounded-lg mb-4"
                     style={{
                       width: playerWidth,
                       height: playerHeight,
                       backgroundColor: "#E2E8F0",
-                      justifyContent: "center",
-                      alignItems: "center",
-                      borderRadius: 8,
-                      marginBottom: 16,
                     }}
                   >
                     <Text>No image available</Text>
                   </View>
                 )}
 
-                <Text style={styles.description}>
-                  {selectedEntertainment.overview ??
-                    selectedEntertainment.description ??
+                <Text className="my-2">
+                  {selected.overview ||
+                    selected.description ||
                     "No description available"}
                 </Text>
 
-                <Text style={styles.recommendHeader}>You Might Also Like</Text>
-                {recommendationsLoading ? (
-                  <ActivityIndicator animating />
+                <Text className="text-lg font-bold my-2">
+                  You Might Also Like
+                </Text>
+
+                {recoLoading ? (
+                  <ActivityIndicator />
                 ) : (
                   <FlatList
                     data={recommendations}
@@ -244,12 +217,13 @@ export default function Entertainment() {
                     keyExtractor={(_, i) => i.toString()}
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={{ paddingHorizontal: 8 }}
+                    ItemSeparatorComponent={() => <View className="w-2" />}
                     renderItem={({ item }) => (
                       <EntertainmentCard
                         item={item}
                         onOpen={handleOpen}
                         onToggleSave={toggleSaveItem}
-                        isSaved={isEntertainmentSaved}
+                        isSaved={isSaved}
                       />
                     )}
                   />
@@ -266,42 +240,3 @@ export default function Entertainment() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "600",
-    color: "#4A5568",
-  },
-  titleBold: {
-    fontWeight: "700",
-    color: "#000",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingTop: 16,
-  },
-  modalImage: {
-    borderRadius: 8,
-    alignSelf: "center",
-    marginBottom: 16,
-  },
-  description: {
-    marginVertical: 8,
-  },
-  recommendHeader: {
-    fontSize: 18,
-    fontWeight: "700",
-    marginVertical: 8,
-  },
-});
-
-

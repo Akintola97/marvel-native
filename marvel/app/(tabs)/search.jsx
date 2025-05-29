@@ -1,2263 +1,329 @@
-// import React, { useState, useEffect, useContext } from 'react';
-// import {
-//   View,
-//   Text,
-//   Image,
-//   SafeAreaView,
-//   TextInput,
-//   TouchableOpacity,
-//   FlatList,
-//   ScrollView,
-//   StyleSheet
-// } from 'react-native';
-// import { Button, Dialog, Portal, ActivityIndicator } from 'react-native-paper';
-// import { FontAwesome } from '@expo/vector-icons';
-// import YoutubePlayer from 'react-native-youtube-iframe';
-// import { SavedContext } from '../context/savedContext';
-
-// // Helper function to return a secure Marvel image URL
-// const getSecureImageUrl = (thumbnail) => {
-//   if (!thumbnail) return "";
-//   const path = thumbnail.path.startsWith("http:")
-//     ? thumbnail.path.replace("http:", "https:")
-//     : thumbnail.path;
-//   return `${path}.${thumbnail.extension}`;
-// };
-
-// export default function Search() {
-//   // Query state
-//   const [query, setQuery] = useState('');
-
-//   // Results
-//   const [characters, setCharacters] = useState([]);
-//   const [comics, setComics] = useState([]);
-//   const [entertainment, setEntertainment] = useState([]);
-
-//   // Show/hide "View All" toggles
-//   const [showAllCharacters, setShowAllCharacters] = useState(false);
-//   const [showAllComics, setShowAllComics] = useState(false);
-//   const [showAllEntertainment, setShowAllEntertainment] = useState(false);
-
-//   // Modal state
-//   const [open, setOpen] = useState(false);
-//   const [selectedItem, setSelectedItem] = useState(null);
-
-//   // Recommendations
-//   const [recommendations, setRecommendations] = useState([]);
-//   const [recommendationsLoading, setRecommendationsLoading] = useState(false);
-
-//   // Trailer key for Entertainment items
-//   const [trailerKey, setTrailerKey] = useState(null);
-
-//   // Loading / Error
-//   const [loading, setLoading] = useState(false);
-//   const [error, setError] = useState('');
-
-//   // Global saved items context
-//   const { savedItems, toggleSaveItem } = useContext(SavedContext);
-
-//   // Perform the three searches in parallel
-//   const handleSearch = async () => {
-//     if (!query.trim()) {
-//       // Clear if empty
-//       setCharacters([]);
-//       setComics([]);
-//       setEntertainment([]);
-//       setError('');
-//       return;
-//     }
-
-//     setLoading(true);
-//     setError('');
-
-//     try {
-//       const [characterData, comicData, entertainmentData] = await Promise.all([
-//         fetch('https://hero.boltluna.io/api/charactersearch', {
-//           method: 'POST',
-//           headers: { 'Content-Type': 'application/json' },
-//           body: JSON.stringify({ characterSearch: query })
-//         }).then((res) => res.json()),
-
-//         fetch('https://hero.boltluna.io/api/comicsearch', {
-//           method: 'POST',
-//           headers: { 'Content-Type': 'application/json' },
-//           body: JSON.stringify({ query })
-//         }).then((res) => res.json()),
-
-//         fetch('https://hero.boltluna.io/api/entertainmentsearch', {
-//           method: 'POST',
-//           headers: { 'Content-Type': 'application/json' },
-//           body: JSON.stringify({ entertainmentSearch: query })
-//         }).then((res) => res.json())
-//       ]);
-
-//       setCharacters(characterData || []);
-//       setComics(comicData || []);
-//       setEntertainment(entertainmentData || []);
-//     } catch (err) {
-//       console.error('Error performing search:', err);
-//       setError('Something went wrong. Please try again.');
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   // Decide how many items to show for each row
-//   const charactersToRender = showAllCharacters ? characters : characters.slice(0, 10);
-//   const comicsToRender = showAllComics ? comics : comics.slice(0, 10);
-//   const entertainmentToRender = showAllEntertainment
-//     ? entertainment
-//     : entertainment.slice(0, 10);
-
-//   // Helper: check if item is saved
-//   const isItemSaved = (item) =>
-//     !!item?.id && savedItems.some((saved) => saved.id === item.id);
-
-//   // --- RECOMMENDATIONS LOGIC ---
-//   const fetchRecommendations = async (item) => {
-//     if (!item) return;
-
-//     setRecommendations([]);
-//     setRecommendationsLoading(true);
-
-//     try {
-//       let endpoint = '';
-//       let body = {};
-
-//       // If it's an entertainment item
-//       if (item.poster_path || item.overview) {
-//         endpoint = 'https://hero.boltluna.io/api/entertainmentrecommendation';
-//         body = {
-//           itemDetails: {
-//             title: item.title || item.name,
-//             type: 'Entertainment',
-//             description: item.overview || ''
-//           }
-//         };
-//       }
-//       // If it's a comic
-//       else if (item.title && item.thumbnail) {
-//         endpoint = 'https://hero.boltluna.io/api/comicrecommendation';
-//         body = {
-//           itemDetails: {
-//             title: item.title,
-//             type: 'Comic',
-//             description: item.description || ''
-//           }
-//         };
-//       }
-//       // Otherwise assume it's a character
-//       else {
-//         endpoint = 'https://hero.boltluna.io/api/characterrecommendation';
-//         body = {
-//           itemDetails: {
-//             title: item.name,
-//             type: 'Character',
-//             description: item.description || ''
-//           }
-//         };
-//       }
-
-//       if (!endpoint) {
-//         setRecommendationsLoading(false);
-//         return;
-//       }
-
-//       const res = await fetch(endpoint, {
-//         method: 'POST',
-//         headers: { 'Content-Type': 'application/json' },
-//         body: JSON.stringify(body)
-//       });
-//       const data = await res.json();
-//       setRecommendations(data?.recommendations || []);
-//     } catch (error) {
-//       console.error('Failed to fetch recommendations:', error);
-//     } finally {
-//       setRecommendationsLoading(false);
-//     }
-//   };
-
-//   // --- TRAILER LOGIC ---
-//   const fetchTrailerForEntertainment = async (item) => {
-//     if (!item || !item.poster_path) return;
-
-//     try {
-//       const response = await fetch('https://hero.boltluna.io/api/trailer', {
-//         method: 'POST',
-//         headers: { 'Content-Type': 'application/json' },
-//         body: JSON.stringify({
-//           media_type: item.type || 'movie',
-//           id: item.id
-//         })
-//       });
-//       const data = await response.json();
-//       setTrailerKey(data?.trailerKey || null);
-//     } catch (error) {
-//       console.error('Error fetching trailer key:', error);
-//       setTrailerKey(null);
-//     }
-//   };
-
-//   // Open modal
-//   const openDetailsModal = (item) => {
-//     setSelectedItem(item);
-//     setOpen(true);
-//     setRecommendations([]);
-//     setTrailerKey(null);
-
-//     // Fetch recommendations
-//     fetchRecommendations(item);
-
-//     // If entertainment item, attempt trailer fetch
-//     if (item?.poster_path) {
-//       fetchTrailerForEntertainment(item);
-//     }
-//   };
-
-//   // Close modal
-//   const closeDetailsModal = () => {
-//     setOpen(false);
-//     setSelectedItem(null);
-//     setRecommendations([]);
-//     setTrailerKey(null);
-//   };
-
-//   // Tapping a recommended item in the modal
-//   const handleRecommendationPress = (recItem) => {
-//     setSelectedItem(recItem);
-//     setRecommendations([]);
-//     setTrailerKey(null);
-//     fetchRecommendations(recItem);
-
-//     if (recItem?.poster_path) {
-//       fetchTrailerForEntertainment(recItem);
-//     }
-//   };
-
-//   // RENDER for each horizontal row
-//   const renderHorizontalItem = ({ item }) => (
-//     <TouchableOpacity onPress={() => openDetailsModal(item)}>
-//       <View style={{ width: 160, marginRight: 16 }}>
-//         <View style={{ position: 'relative' }}>
-//           {/* Marvel item (using thumbnail & helper) or TMDb item */}
-//           {item?.thumbnail?.path && item?.thumbnail?.extension ? (
-//             <Image
-//               source={{ uri: getSecureImageUrl(item.thumbnail) }}
-//               style={{ width: '100%', height: 240, borderRadius: 8 }}
-//               resizeMode="cover"
-//             />
-//           ) : item?.poster_path ? (
-//             <Image
-//               source={{ uri: `https://image.tmdb.org/t/p/original${item.poster_path}` }}
-//               style={{ width: '100%', height: 240, borderRadius: 8 }}
-//               resizeMode="cover"
-//             />
-//           ) : (
-//             <View
-//               style={{
-//                 width: '100%',
-//                 height: 240,
-//                 borderRadius: 8,
-//                 backgroundColor: '#ccc',
-//                 justifyContent: 'center',
-//                 alignItems: 'center'
-//               }}
-//             >
-//               <Text>No Image</Text>
-//             </View>
-//           )}
-
-//           {/* Heart overlay */}
-//           <TouchableOpacity
-//             onPress={() => toggleSaveItem(item)}
-//             style={{ position: 'absolute', top: 8, right: 8 }}
-//           >
-//             {isItemSaved(item) ? (
-//               <FontAwesome name="heart" size={24} color="red" />
-//             ) : (
-//               <FontAwesome name="heart-o" size={24} color="red" />
-//             )}
-//           </TouchableOpacity>
-//         </View>
-//         <Text
-//           style={{
-//             marginTop: 8,
-//             textAlign: 'center',
-//             fontWeight: '600',
-//             color: '#2D3748'
-//           }}
-//         >
-//           {item.name || item.title || 'Untitled'}
-//         </Text>
-//       </View>
-//     </TouchableOpacity>
-//   );
-
-//   return (
-//     <SafeAreaView style={{ flex: 1, backgroundColor: '#F7FAFC' }}>
-//       {/* Container with padding */}
-//       <View style={{ padding: 16, flex: 1 }}>
-//         {/* Header / Title */}
-//         <View style={{ marginBottom: 16 }}>
-//           <Text style={{ fontSize: 24, fontWeight: '700', color: '#4A5568' }}>
-//             Search
-//           </Text>
-//         </View>
-
-//         {/* Search Row */}
-//         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-//           <TextInput
-//             style={{
-//               flex: 1,
-//               borderWidth: 1,
-//               borderColor: '#ccc',
-//               borderRadius: 8,
-//               paddingHorizontal: 8,
-//               paddingVertical: 6,
-//               marginRight: 8,
-//               backgroundColor: '#fff'
-//             }}
-//             placeholder="Search (e.g. 'Wolverine')"
-//             value={query}
-//             onChangeText={(text) => setQuery(text)}
-//             onSubmitEditing={handleSearch}
-//           />
-//           <TouchableOpacity
-//             style={{
-//               backgroundColor: '#007bff',
-//               borderRadius: 8,
-//               paddingHorizontal: 12,
-//               paddingVertical: 8
-//             }}
-//             onPress={handleSearch}
-//           >
-//             <Text style={{ color: '#fff', fontWeight: 'bold' }}>Search</Text>
-//           </TouchableOpacity>
-//         </View>
-
-//         {/* Loading indicator */}
-//         {loading && (
-//           <View style={{ marginTop: 16 }}>
-//             <ActivityIndicator animating size="large" color="#000" />
-//           </View>
-//         )}
-
-//         {/* Error text */}
-//         {!!error && (
-//           <Text style={{ color: 'red', textAlign: 'center', marginTop: 8 }}>
-//             {error}
-//           </Text>
-//         )}
-
-//         {/* Scrollable area for the 3 categories */}
-//         <ScrollView style={{ marginTop: 16 }}>
-//           {/* Characters */}
-//           {characters.length > 0 && (
-//             <View style={{ marginBottom: 24 }}>
-//               <View
-//                 style={{
-//                   flexDirection: 'row',
-//                   justifyContent: 'space-between',
-//                   alignItems: 'center'
-//                 }}
-//               >
-//                 <Text style={{ fontSize: 24, fontWeight: '600', color: '#4A5568' }}>
-//                   Characters
-//                 </Text>
-//                 <Button
-//                   mode="contained"
-//                   onPress={() => setShowAllCharacters(!showAllCharacters)}
-//                 >
-//                   {showAllCharacters ? 'View Less' : 'View All'}
-//                 </Button>
-//               </View>
-//               <FlatList
-//                 data={charactersToRender}
-//                 keyExtractor={(item, idx) => `char-${item.id || idx}`}
-//                 renderItem={renderHorizontalItem}
-//                 horizontal
-//                 showsHorizontalScrollIndicator={false}
-//                 contentContainerStyle={{ marginTop: 16 }}
-//                 ItemSeparatorComponent={() => <View style={{ width: 16 }} />}
-//               />
-//             </View>
-//           )}
-
-//           {/* Comics */}
-//           {comics.length > 0 && (
-//             <View style={{ marginBottom: 24 }}>
-//               <View
-//                 style={{
-//                   flexDirection: 'row',
-//                   justifyContent: 'space-between',
-//                   alignItems: 'center'
-//                 }}
-//               >
-//                 <Text style={{ fontSize: 24, fontWeight: '600', color: '#4A5568' }}>
-//                   Comics
-//                 </Text>
-//                 <Button
-//                   mode="contained"
-//                   onPress={() => setShowAllComics(!showAllComics)}
-//                 >
-//                   {showAllComics ? 'View Less' : 'View All'}
-//                 </Button>
-//               </View>
-//               <FlatList
-//                 data={comicsToRender}
-//                 keyExtractor={(item, idx) => `comic-${item.id || idx}`}
-//                 renderItem={renderHorizontalItem}
-//                 horizontal
-//                 showsHorizontalScrollIndicator={false}
-//                 contentContainerStyle={{ marginTop: 16 }}
-//                 ItemSeparatorComponent={() => <View style={{ width: 16 }} />}
-//               />
-//             </View>
-//           )}
-
-//           {/* Entertainment */}
-//           {entertainment.length > 0 && (
-//             <View style={{ marginBottom: 24 }}>
-//               <View
-//                 style={{
-//                   flexDirection: 'row',
-//                   justifyContent: 'space-between',
-//                   alignItems: 'center'
-//                 }}
-//               >
-//                 <Text style={{ fontSize: 24, fontWeight: '600', color: '#4A5568' }}>
-//                   Entertainment
-//                 </Text>
-//                 <Button
-//                   mode="contained"
-//                   onPress={() => setShowAllEntertainment(!showAllEntertainment)}
-//                 >
-//                   {showAllEntertainment ? 'View Less' : 'View All'}
-//                 </Button>
-//               </View>
-//               <FlatList
-//                 data={entertainmentToRender}
-//                 keyExtractor={(item, idx) => `ent-${item.id || idx}`}
-//                 renderItem={renderHorizontalItem}
-//                 horizontal
-//                 showsHorizontalScrollIndicator={false}
-//                 contentContainerStyle={{ marginTop: 16 }}
-//                 ItemSeparatorComponent={() => <View style={{ width: 16 }} />}
-//               />
-//             </View>
-//           )}
-//         </ScrollView>
-
-//         {/* Modal */}
-//         <Portal>
-//           <Dialog visible={open} onDismiss={closeDetailsModal}>
-//             {/* Header with Title + Heart icon */}
-//             <View
-//               style={{
-//                 flexDirection: 'row',
-//                 alignItems: 'center',
-//                 justifyContent: 'space-between',
-//                 paddingHorizontal: 16,
-//                 paddingTop: 16
-//               }}
-//             >
-//               <Dialog.Title style={{ flex: 1 }}>
-//                 {selectedItem?.name || selectedItem?.title || 'Details'}
-//               </Dialog.Title>
-//               {selectedItem && (
-//                 <TouchableOpacity onPress={() => toggleSaveItem(selectedItem)}>
-//                   {isItemSaved(selectedItem) ? (
-//                     <FontAwesome name="heart" size={24} color="red" />
-//                   ) : (
-//                     <FontAwesome name="heart-o" size={24} color="red" />
-//                   )}
-//                 </TouchableOpacity>
-//               )}
-//             </View>
-//             <Dialog.Content>
-//               {selectedItem && (
-//                 <ScrollView>
-//                   {/* Trailer or Image */}
-//                   {trailerKey ? (
-//                     <YoutubePlayer height={200} play={false} videoId={trailerKey} />
-//                   ) : selectedItem?.thumbnail?.path && selectedItem?.thumbnail?.extension ? (
-//                     <Image
-//                       source={{ uri: getSecureImageUrl(selectedItem.thumbnail) }}
-//                       style={{
-//                         width: '100%',
-//                         height: 200,
-//                         borderRadius: 8,
-//                         marginBottom: 8
-//                       }}
-//                       resizeMode="cover"
-//                     />
-//                   ) : selectedItem?.poster_path ? (
-//                     <Image
-//                       source={{ uri: `https://image.tmdb.org/t/p/original${selectedItem.poster_path}` }}
-//                       style={{
-//                         width: '100%',
-//                         height: 200,
-//                         borderRadius: 8,
-//                         marginBottom: 8
-//                       }}
-//                       resizeMode="cover"
-//                     />
-//                   ) : (
-//                     <View
-//                       style={{
-//                         width: '100%',
-//                         height: 200,
-//                         borderRadius: 8,
-//                         backgroundColor: '#ccc',
-//                         justifyContent: 'center',
-//                         alignItems: 'center',
-//                         marginBottom: 8
-//                       }}
-//                     >
-//                       <Text>No Image</Text>
-//                     </View>
-//                   )}
-
-//                   {/* Description */}
-//                   <Text style={{ marginBottom: 8 }}>
-//                     {selectedItem.description ||
-//                       selectedItem.overview ||
-//                       'No description available'}
-//                   </Text>
-
-//                   {/* Recommendations */}
-//                   <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 8 }}>
-//                     You Might Also Like
-//                   </Text>
-//                   {recommendationsLoading ? (
-//                     <ActivityIndicator animating={true} />
-//                   ) : (
-//                     <FlatList
-//                       data={recommendations}
-//                       keyExtractor={(_, i) => `rec-${i}`}
-//                       horizontal
-//                       showsHorizontalScrollIndicator={false}
-//                       renderItem={({ item: recItem }) => (
-//                         <TouchableOpacity onPress={() => handleRecommendationPress(recItem)}>
-//                           <View style={{ width: 120, marginRight: 16 }}>
-//                             {/* Recommendation image */}
-//                             {recItem?.thumbnail?.path && recItem?.thumbnail?.extension ? (
-//                               <Image
-//                                 source={{ uri: getSecureImageUrl(recItem.thumbnail) }}
-//                                 style={{ width: '100%', height: 100, borderRadius: 8 }}
-//                                 resizeMode="cover"
-//                               />
-//                             ) : recItem?.poster_path ? (
-//                               <Image
-//                                 source={{ uri: `https://image.tmdb.org/t/p/original${recItem.poster_path}` }}
-//                                 style={{ width: '100%', height: 100, borderRadius: 8 }}
-//                                 resizeMode="cover"
-//                               />
-//                             ) : (
-//                               <View
-//                                 style={{
-//                                   width: '100%',
-//                                   height: 100,
-//                                   borderRadius: 8,
-//                                   backgroundColor: '#ccc',
-//                                   justifyContent: 'center',
-//                                   alignItems: 'center'
-//                                 }}
-//                               >
-//                                 <Text>No Image</Text>
-//                               </View>
-//                             )}
-//                             <Text style={{ marginTop: 4, textAlign: 'center' }}>
-//                               {recItem?.title || recItem?.name}
-//                             </Text>
-//                           </View>
-//                         </TouchableOpacity>
-//                       )}
-//                     />
-//                   )}
-//                 </ScrollView>
-//               )}
-//             </Dialog.Content>
-//             <Dialog.Actions>
-//               <Button onPress={closeDetailsModal}>Close</Button>
-//             </Dialog.Actions>
-//           </Dialog>
-//         </Portal>
-//       </View>
-//     </SafeAreaView>
-//   );
-// }
-
-
-
-
-
-// import React, { useState, useEffect, useContext } from 'react';
-// import {
-//   View,
-//   Text,
-//   Image,
-//   SafeAreaView,
-//   TextInput,
-//   TouchableOpacity,
-//   FlatList,
-//   ScrollView,
-//   StyleSheet,
-//   Dimensions
-// } from 'react-native';
-// import { Button, Dialog, Portal, ActivityIndicator } from 'react-native-paper';
-// import { FontAwesome } from '@expo/vector-icons';
-// import YoutubePlayer from 'react-native-youtube-iframe';
-// import { SavedContext } from '../context/savedContext';
-
-// // Helper function to return a secure Marvel image URL
-// const getSecureImageUrl = (thumbnail) => {
-//   if (!thumbnail) return "";
-//   const path = thumbnail.path.startsWith("http:")
-//     ? thumbnail.path.replace("http:", "https:")
-//     : thumbnail.path;
-//   return `${path}.${thumbnail.extension}`;
-// };
-
-// export default function Search() {
-//   // Query state
-//   const [query, setQuery] = useState('');
-
-//   // Results
-//   const [characters, setCharacters] = useState([]);
-//   const [comics, setComics] = useState([]);
-//   const [entertainment, setEntertainment] = useState([]);
-
-//   // Show/hide "View All" toggles
-//   const [showAllCharacters, setShowAllCharacters] = useState(false);
-//   const [showAllComics, setShowAllComics] = useState(false);
-//   const [showAllEntertainment, setShowAllEntertainment] = useState(false);
-
-//   // Modal state
-//   const [open, setOpen] = useState(false);
-//   const [selectedItem, setSelectedItem] = useState(null);
-
-//   // Recommendations
-//   const [recommendations, setRecommendations] = useState([]);
-//   const [recommendationsLoading, setRecommendationsLoading] = useState(false);
-
-//   // Trailer key for Entertainment items
-//   const [trailerKey, setTrailerKey] = useState(null);
-
-//   // Loading / Error
-//   const [loading, setLoading] = useState(false);
-//   const [error, setError] = useState('');
-
-//   // Global saved items context
-//   const { savedItems, toggleSaveItem } = useContext(SavedContext);
-
-//   // Determine responsive dimensions for trailer / image in modal.
-//   // Assume a total horizontal padding of 32 (i.e. 16 on each side)
-//   const screenWidth = Dimensions.get("window").width;
-//   const trailerWidth = screenWidth - 32;
-//   const trailerHeight = trailerWidth * (9 / 16);
-
-//   // Perform the three searches in parallel
-//   const handleSearch = async () => {
-//     if (!query.trim()) {
-//       // Clear if empty
-//       setCharacters([]);
-//       setComics([]);
-//       setEntertainment([]);
-//       setError('');
-//       return;
-//     }
-
-//     setLoading(true);
-//     setError('');
-
-//     try {
-//       const [characterData, comicData, entertainmentData] = await Promise.all([
-//         fetch('https://hero.boltluna.io/api/charactersearch', {
-//           method: 'POST',
-//           headers: { 'Content-Type': 'application/json' },
-//           body: JSON.stringify({ characterSearch: query })
-//         }).then((res) => res.json()),
-
-//         fetch('https://hero.boltluna.io/api/comicsearch', {
-//           method: 'POST',
-//           headers: { 'Content-Type': 'application/json' },
-//           body: JSON.stringify({ query })
-//         }).then((res) => res.json()),
-
-//         fetch('https://hero.boltluna.io/api/entertainmentsearch', {
-//           method: 'POST',
-//           headers: { 'Content-Type': 'application/json' },
-//           body: JSON.stringify({ entertainmentSearch: query })
-//         }).then((res) => res.json())
-//       ]);
-
-//       setCharacters(characterData || []);
-//       setComics(comicData || []);
-//       setEntertainment(entertainmentData || []);
-//     } catch (err) {
-//       console.error('Error performing search:', err);
-//       setError('Something went wrong. Please try again.');
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   // Decide how many items to show for each row
-//   const charactersToRender = showAllCharacters ? characters : characters.slice(0, 10);
-//   const comicsToRender = showAllComics ? comics : comics.slice(0, 10);
-//   const entertainmentToRender = showAllEntertainment ? entertainment : entertainment.slice(0, 10);
-
-//   // Helper: check if item is saved
-//   const isItemSaved = (item) =>
-//     !!item?.id && savedItems.some((saved) => saved.id === item.id);
-
-//   // --- RECOMMENDATIONS LOGIC ---
-//   const fetchRecommendations = async (item) => {
-//     if (!item) return;
-
-//     setRecommendations([]);
-//     setRecommendationsLoading(true);
-
-//     try {
-//       let endpoint = '';
-//       let body = {};
-
-//       // If it's an entertainment item
-//       if (item.poster_path || item.overview) {
-//         endpoint = 'https://hero.boltluna.io/api/entertainmentrecommendation';
-//         body = {
-//           itemDetails: {
-//             title: item.title || item.name,
-//             type: 'Entertainment',
-//             description: item.overview || ''
-//           }
-//         };
-//       }
-//       // If it's a comic
-//       else if (item.title && item.thumbnail) {
-//         endpoint = 'https://hero.boltluna.io/api/comicrecommendation';
-//         body = {
-//           itemDetails: {
-//             title: item.title,
-//             type: 'Comic',
-//             description: item.description || ''
-//           }
-//         };
-//       }
-//       // Otherwise assume it's a character
-//       else {
-//         endpoint = 'https://hero.boltluna.io/api/characterrecommendation';
-//         body = {
-//           itemDetails: {
-//             title: item.name,
-//             type: 'Character',
-//             description: item.description || ''
-//           }
-//         };
-//       }
-
-//       if (!endpoint) {
-//         setRecommendationsLoading(false);
-//         return;
-//       }
-
-//       const res = await fetch(endpoint, {
-//         method: 'POST',
-//         headers: { 'Content-Type': 'application/json' },
-//         body: JSON.stringify(body)
-//       });
-//       const data = await res.json();
-//       setRecommendations(data?.recommendations || []);
-//     } catch (error) {
-//       console.error('Failed to fetch recommendations:', error);
-//     } finally {
-//       setRecommendationsLoading(false);
-//     }
-//   };
-
-//   // --- TRAILER LOGIC ---
-//   const fetchTrailerForEntertainment = async (item) => {
-//     if (!item || !item.poster_path) return;
-
-//     try {
-//       const response = await fetch('https://hero.boltluna.io/api/trailer', {
-//         method: 'POST',
-//         headers: { 'Content-Type': 'application/json' },
-//         body: JSON.stringify({
-//           media_type: item.type || 'movie',
-//           id: item.id
-//         })
-//       });
-//       const data = await response.json();
-//       setTrailerKey(data?.trailerKey || null);
-//     } catch (error) {
-//       console.error('Error fetching trailer key:', error);
-//       setTrailerKey(null);
-//     }
-//   };
-
-//   // Open modal
-//   const openDetailsModal = (item) => {
-//     setSelectedItem(item);
-//     setOpen(true);
-//     setRecommendations([]);
-//     setTrailerKey(null);
-
-//     // Fetch recommendations
-//     fetchRecommendations(item);
-
-//     // If entertainment item, attempt trailer fetch
-//     if (item?.poster_path) {
-//       fetchTrailerForEntertainment(item);
-//     }
-//   };
-
-//   // Close modal
-//   const closeDetailsModal = () => {
-//     setOpen(false);
-//     setSelectedItem(null);
-//     setRecommendations([]);
-//     setTrailerKey(null);
-//   };
-
-//   // Tapping a recommended item in the modal
-//   const handleRecommendationPress = (recItem) => {
-//     setSelectedItem(recItem);
-//     setRecommendations([]);
-//     setTrailerKey(null);
-//     fetchRecommendations(recItem);
-
-//     if (recItem?.poster_path) {
-//       fetchTrailerForEntertainment(recItem);
-//     }
-//   };
-
-//   // RENDER for each horizontal row
-//   const renderHorizontalItem = ({ item }) => (
-//     <TouchableOpacity onPress={() => openDetailsModal(item)}>
-//       <View style={{ width: 160, marginRight: 16 }}>
-//         <View style={{ position: 'relative' }}>
-//           {/* Marvel item (using thumbnail & helper) or TMDb item */}
-//           {item?.thumbnail?.path && item?.thumbnail?.extension ? (
-//             <Image
-//               source={{ uri: getSecureImageUrl(item.thumbnail) }}
-//               style={{ width: '100%', height: 240, borderRadius: 8 }}
-//               resizeMode="cover"
-//             />
-//           ) : item?.poster_path ? (
-//             <Image
-//               source={{ uri: `https://image.tmdb.org/t/p/original${item.poster_path}` }}
-//               style={{ width: '100%', height: 240, borderRadius: 8 }}
-//               resizeMode="cover"
-//             />
-//           ) : (
-//             <View
-//               style={{
-//                 width: '100%',
-//                 height: 240,
-//                 borderRadius: 8,
-//                 backgroundColor: '#ccc',
-//                 justifyContent: 'center',
-//                 alignItems: 'center'
-//               }}
-//             >
-//               <Text>No Image</Text>
-//             </View>
-//           )}
-
-//           {/* Heart overlay */}
-//           <TouchableOpacity
-//             onPress={() => toggleSaveItem(item)}
-//             style={{ position: 'absolute', top: 8, right: 8 }}
-//           >
-//             {isItemSaved(item) ? (
-//               <FontAwesome name="heart" size={24} color="red" />
-//             ) : (
-//               <FontAwesome name="heart-o" size={24} color="red" />
-//             )}
-//           </TouchableOpacity>
-//         </View>
-//         <Text
-//           style={{
-//             marginTop: 8,
-//             textAlign: 'center',
-//             fontWeight: '600',
-//             color: '#2D3748'
-//           }}
-//         >
-//           {item.name || item.title || 'Untitled'}
-//         </Text>
-//       </View>
-//     </TouchableOpacity>
-//   );
-
-//   return (
-//     <SafeAreaView style={{ flex: 1, backgroundColor: '#F7FAFC' }}>
-//       {/* Container with padding */}
-//       <View style={{ padding: 16, flex: 1 }}>
-//         {/* Header / Title */}
-//         <View style={{ marginBottom: 16 }}>
-//           <Text style={{ fontSize: 24, fontWeight: '700', color: '#4A5568' }}>
-//             Search
-//           </Text>
-//         </View>
-
-//         {/* Search Row */}
-//         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-//           <TextInput
-//             style={{
-//               flex: 1,
-//               borderWidth: 1,
-//               borderColor: '#ccc',
-//               borderRadius: 8,
-//               paddingHorizontal: 8,
-//               paddingVertical: 6,
-//               marginRight: 8,
-//               backgroundColor: '#fff'
-//             }}
-//             placeholder="Search (e.g. 'Wolverine')"
-//             value={query}
-//             onChangeText={(text) => setQuery(text)}
-//             onSubmitEditing={handleSearch}
-//           />
-//           <TouchableOpacity
-//             style={{
-//               backgroundColor: '#007bff',
-//               borderRadius: 8,
-//               paddingHorizontal: 12,
-//               paddingVertical: 8
-//             }}
-//             onPress={handleSearch}
-//           >
-//             <Text style={{ color: '#fff', fontWeight: 'bold' }}>Search</Text>
-//           </TouchableOpacity>
-//         </View>
-
-//         {/* Loading indicator */}
-//         {loading && (
-//           <View style={{ marginTop: 16 }}>
-//             <ActivityIndicator animating size="large" color="#000" />
-//           </View>
-//         )}
-
-//         {/* Error text */}
-//         {!!error && (
-//           <Text style={{ color: 'red', textAlign: 'center', marginTop: 8 }}>
-//             {error}
-//           </Text>
-//         )}
-
-//         {/* Scrollable area for the 3 categories */}
-//         <ScrollView style={{ marginTop: 16 }}>
-//           {/* Characters */}
-//           {characters.length > 0 && (
-//             <View style={{ marginBottom: 24 }}>
-//               <View
-//                 style={{
-//                   flexDirection: 'row',
-//                   justifyContent: 'space-between',
-//                   alignItems: 'center'
-//                 }}
-//               >
-//                 <Text style={{ fontSize: 24, fontWeight: '600', color: '#4A5568' }}>
-//                   Characters
-//                 </Text>
-//                 <Button
-//                   mode="contained"
-//                   onPress={() => setShowAllCharacters(!showAllCharacters)}
-//                 >
-//                   {showAllCharacters ? 'View Less' : 'View All'}
-//                 </Button>
-//               </View>
-//               <FlatList
-//                 data={charactersToRender}
-//                 keyExtractor={(item, idx) => `char-${item.id || idx}`}
-//                 renderItem={renderHorizontalItem}
-//                 horizontal
-//                 showsHorizontalScrollIndicator={false}
-//                 contentContainerStyle={{ marginTop: 16 }}
-//                 ItemSeparatorComponent={() => <View style={{ width: 16 }} />}
-//               />
-//             </View>
-//           )}
-
-//           {/* Comics */}
-//           {comics.length > 0 && (
-//             <View style={{ marginBottom: 24 }}>
-//               <View
-//                 style={{
-//                   flexDirection: 'row',
-//                   justifyContent: 'space-between',
-//                   alignItems: 'center'
-//                 }}
-//               >
-//                 <Text style={{ fontSize: 24, fontWeight: '600', color: '#4A5568' }}>
-//                   Comics
-//                 </Text>
-//                 <Button
-//                   mode="contained"
-//                   onPress={() => setShowAllComics(!showAllComics)}
-//                 >
-//                   {showAllComics ? 'View Less' : 'View All'}
-//                 </Button>
-//               </View>
-//               <FlatList
-//                 data={comicsToRender}
-//                 keyExtractor={(item, idx) => `comic-${item.id || idx}`}
-//                 renderItem={renderHorizontalItem}
-//                 horizontal
-//                 showsHorizontalScrollIndicator={false}
-//                 contentContainerStyle={{ marginTop: 16 }}
-//                 ItemSeparatorComponent={() => <View style={{ width: 16 }} />}
-//               />
-//             </View>
-//           )}
-
-//           {/* Entertainment */}
-//           {entertainment.length > 0 && (
-//             <View style={{ marginBottom: 24 }}>
-//               <View
-//                 style={{
-//                   flexDirection: 'row',
-//                   justifyContent: 'space-between',
-//                   alignItems: 'center'
-//                 }}
-//               >
-//                 <Text style={{ fontSize: 24, fontWeight: '600', color: '#4A5568' }}>
-//                   Entertainment
-//                 </Text>
-//                 <Button
-//                   mode="contained"
-//                   onPress={() => setShowAllEntertainment(!showAllEntertainment)}
-//                 >
-//                   {showAllEntertainment ? 'View Less' : 'View All'}
-//                 </Button>
-//               </View>
-//               <FlatList
-//                 data={entertainmentToRender}
-//                 keyExtractor={(item, idx) => `ent-${item.id || idx}`}
-//                 renderItem={renderHorizontalItem}
-//                 horizontal
-//                 showsHorizontalScrollIndicator={false}
-//                 contentContainerStyle={{ marginTop: 16 }}
-//                 ItemSeparatorComponent={() => <View style={{ width: 16 }} />}
-//               />
-//             </View>
-//           )}
-//         </ScrollView>
-
-//         {/* Modal */}
-//         <Portal>
-//           <Dialog visible={open} onDismiss={closeDetailsModal}>
-//             {/* Header with Title + Heart icon */}
-//             <View
-//               style={{
-//                 flexDirection: 'row',
-//                 alignItems: 'center',
-//                 justifyContent: 'space-between',
-//                 paddingHorizontal: 16,
-//                 paddingTop: 16
-//               }}
-//             >
-//               <Dialog.Title style={{ flex: 1, fontSize:36, color:'#2D3748' }}>
-//                 {selectedItem?.name || selectedItem?.title || 'Details'}
-//               </Dialog.Title>
-//               {selectedItem && (
-//                 <TouchableOpacity onPress={() => toggleSaveItem(selectedItem)}>
-//                   {isItemSaved(selectedItem) ? (
-//                     <FontAwesome name="heart" size={24} color="red" />
-//                   ) : (
-//                     <FontAwesome name="heart-o" size={24} color="red" />
-//                   )}
-//                 </TouchableOpacity>
-//               )}
-//             </View>
-//             <Dialog.Content>
-//               {selectedItem && (
-//                 <ScrollView>
-//                   {/* Trailer or Image */}
-//                   {trailerKey ? (
-//                     <YoutubePlayer
-//                       height={trailerHeight}
-//                       width={trailerWidth}
-//                       play={false}
-//                       videoId={trailerKey}
-//                     />
-//                   ) : selectedItem?.thumbnail?.path && selectedItem?.thumbnail?.extension ? (
-//                     <Image
-//                       source={{ uri: getSecureImageUrl(selectedItem.thumbnail) }}
-//                       style={{
-//                         width: '100%',
-//                         height: trailerHeight,
-//                         borderRadius: 8,
-//                         marginBottom: 8
-//                       }}
-//                       resizeMode="cover"
-//                     />
-//                   ) : selectedItem?.poster_path ? (
-//                     <Image
-//                       source={{ uri: `https://image.tmdb.org/t/p/original${selectedItem.poster_path}` }}
-//                       style={{
-//                         width: '100%',
-//                         height: trailerHeight,
-//                         borderRadius: 8,
-//                         marginBottom: 8
-//                       }}
-//                       resizeMode="cover"
-//                     />
-//                   ) : (
-//                     <View
-//                       style={{
-//                         width: '100%',
-//                         height: trailerHeight,
-//                         borderRadius: 8,
-//                         backgroundColor: '#ccc',
-//                         justifyContent: 'center',
-//                         alignItems: 'center',
-//                         marginBottom: 8
-//                       }}
-//                     >
-//                       <Text>No Image</Text>
-//                     </View>
-//                   )}
-
-//                   {/* Description */}
-//                   <Text style={{ marginBottom: 8, marginTop:20, fontSize: 26 }}>
-//                     {selectedItem.description ||
-//                       selectedItem.overview ||
-//                       'No description available'}
-//                   </Text>
-
-//                   {/* Recommendations */}
-//                   <Text style={{ fontSize: 25, fontWeight: '700', marginBottom: 8, marginTop: 25 }}>
-//                     You Might Also Like
-//                   </Text>
-//                   {recommendationsLoading ? (
-//                     <ActivityIndicator animating={true} />
-//                   ) : (
-//                     <FlatList
-//                       data={recommendations}
-//                       keyExtractor={(_, i) => `rec-${i}`}
-//                       horizontal
-//                       showsHorizontalScrollIndicator={false}
-//                       renderItem={({ item: recItem }) => (
-//                         <TouchableOpacity onPress={() => handleRecommendationPress(recItem)}>
-//                           <View style={{ width: 120, marginRight: 16 }}>
-//                             {/* Recommendation image */}
-//                             {recItem?.thumbnail?.path && recItem?.thumbnail?.extension ? (
-//                               <Image
-//                                 source={{ uri: getSecureImageUrl(recItem.thumbnail) }}
-//                                 style={{ width: '100%', height: 100, borderRadius: 8 }}
-//                                 resizeMode="cover"
-//                               />
-//                             ) : recItem?.poster_path ? (
-//                               <Image
-//                                 source={{ uri: `https://image.tmdb.org/t/p/original${recItem.poster_path}` }}
-//                                 style={{ width: '100%', height: 100, borderRadius: 8 }}
-//                                 resizeMode="cover"
-//                               />
-//                             ) : (
-//                               <View
-//                                 style={{
-//                                   width: '100%',
-//                                   height: 100,
-//                                   borderRadius: 8,
-//                                   backgroundColor: '#ccc',
-//                                   justifyContent: 'center',
-//                                   alignItems: 'center'
-//                                 }}
-//                               >
-//                                 <Text>No Image</Text>
-//                               </View>
-//                             )}
-//                             <Text style={{ marginTop: 4, fontSize:25, textAlign: 'center' }}>
-//                               {recItem?.title || recItem?.name}
-//                             </Text>
-//                           </View>
-//                         </TouchableOpacity>
-//                       )}
-//                     />
-//                   )}
-//                 </ScrollView>
-//               )}
-//             </Dialog.Content>
-//             <Dialog.Actions>
-//               <Button className="p-5"  onPress={closeDetailsModal}><Text className="text-[2vh]">Close</Text></Button>
-//             </Dialog.Actions>
-//           </Dialog>
-//         </Portal>
-//       </View>
-//     </SafeAreaView>
-//   );
-// }
-
-
-
-
-
-
-// import React, { useState, useEffect, useContext } from 'react';
-// import {
-//   View,
-//   Text,
-//   Image,
-//   SafeAreaView,
-//   TextInput,
-//   TouchableOpacity,
-//   FlatList,
-//   ScrollView,
-//   StyleSheet,
-//   Dimensions
-// } from 'react-native';
-// import { Button, Dialog, Portal, ActivityIndicator } from 'react-native-paper';
-// import { FontAwesome } from '@expo/vector-icons';
-// import YoutubePlayer from 'react-native-youtube-iframe';
-// import { SavedContext } from '../context/savedContext';
-
-// // Helper function to return a secure Marvel image URL
-// const getSecureImageUrl = (thumbnail) => {
-//   if (!thumbnail) return "";
-//   const path = thumbnail.path.startsWith("http:")
-//     ? thumbnail.path.replace("http:", "https:")
-//     : thumbnail.path;
-//   return `${path}.${thumbnail.extension}`;
-// };
-
-// export default function Search() {
-//   // Query state
-//   const [query, setQuery] = useState('');
-
-//   // Results
-//   const [characters, setCharacters] = useState([]);
-//   const [comics, setComics] = useState([]);
-//   const [entertainment, setEntertainment] = useState([]);
-
-//   // Show/hide "View All" toggles
-//   const [showAllCharacters, setShowAllCharacters] = useState(false);
-//   const [showAllComics, setShowAllComics] = useState(false);
-//   const [showAllEntertainment, setShowAllEntertainment] = useState(false);
-
-//   // Modal state
-//   const [open, setOpen] = useState(false);
-//   const [selectedItem, setSelectedItem] = useState(null);
-
-//   // Recommendations
-//   const [recommendations, setRecommendations] = useState([]);
-//   const [recommendationsLoading, setRecommendationsLoading] = useState(false);
-
-//   // Trailer key for Entertainment items
-//   const [trailerKey, setTrailerKey] = useState(null);
-
-//   // Loading / Error
-//   const [loading, setLoading] = useState(false);
-//   const [error, setError] = useState('');
-
-//   // Global saved items context
-//   const { savedItems, toggleSaveItem } = useContext(SavedContext);
-
-//   // Determine responsive dimensions for trailer / image in modal.
-//   // Assume a total horizontal padding of 32 (i.e. 16 on each side)
-//   const screenWidth = Dimensions.get("window").width;
-//   const trailerWidth = screenWidth - 32;
-//   const trailerHeight = trailerWidth * (9 / 16);
-
-//   // Perform the three searches in parallel
-//   const handleSearch = async () => {
-//     if (!query.trim()) {
-//       // Clear if empty
-//       setCharacters([]);
-//       setComics([]);
-//       setEntertainment([]);
-//       setError('');
-//       return;
-//     }
-
-//     setLoading(true);
-//     setError('');
-
-//     try {
-//       const [characterData, comicData, entertainmentData] = await Promise.all([
-//         fetch('https://hero.boltluna.io/api/charactersearch', {
-//           method: 'POST',
-//           headers: { 'Content-Type': 'application/json' },
-//           body: JSON.stringify({ characterSearch: query })
-//         }).then((res) => res.json()),
-
-//         fetch('https://hero.boltluna.io/api/comicsearch', {
-//           method: 'POST',
-//           headers: { 'Content-Type': 'application/json' },
-//           body: JSON.stringify({ query })
-//         }).then((res) => res.json()),
-
-//         fetch('https://hero.boltluna.io/api/entertainmentsearch', {
-//           method: 'POST',
-//           headers: { 'Content-Type': 'application/json' },
-//           body: JSON.stringify({ entertainmentSearch: query })
-//         }).then((res) => res.json())
-//       ]);
-
-//       setCharacters(characterData || []);
-//       setComics(comicData || []);
-//       setEntertainment(entertainmentData || []);
-//     } catch (err) {
-//       console.error('Error performing search:', err);
-//       setError('Something went wrong. Please try again.');
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   // Decide how many items to show for each row
-//   const charactersToRender = showAllCharacters ? characters : characters.slice(0, 10);
-//   const comicsToRender = showAllComics ? comics : comics.slice(0, 10);
-//   const entertainmentToRender = showAllEntertainment ? entertainment : entertainment.slice(0, 10);
-
-//   // Helper: check if item is saved
-//   const isItemSaved = (item) =>
-//     !!item?.id && savedItems.some((saved) => saved.id === item.id);
-
-//   // --- RECOMMENDATIONS LOGIC ---
-//   const fetchRecommendations = async (item) => {
-//     if (!item) return;
-
-//     setRecommendations([]);
-//     setRecommendationsLoading(true);
-
-//     try {
-//       let endpoint = '';
-//       let body = {};
-
-//       // If it's an entertainment item
-//       if (item.poster_path || item.overview) {
-//         endpoint = 'https://hero.boltluna.io/api/entertainmentrecommendation';
-//         body = {
-//           itemDetails: {
-//             title: item.title || item.name,
-//             type: 'Entertainment',
-//             description: item.overview || ''
-//           }
-//         };
-//       }
-//       // If it's a comic
-//       else if (item.title && item.thumbnail) {
-//         endpoint = 'https://hero.boltluna.io/api/comicrecommendation';
-//         body = {
-//           itemDetails: {
-//             title: item.title,
-//             type: 'Comic',
-//             description: item.description || ''
-//           }
-//         };
-//       }
-//       // Otherwise assume it's a character
-//       else {
-//         endpoint = 'https://hero.boltluna.io/api/characterrecommendation';
-//         body = {
-//           itemDetails: {
-//             title: item.name,
-//             type: 'Character',
-//             description: item.description || ''
-//           }
-//         };
-//       }
-
-//       if (!endpoint) {
-//         setRecommendationsLoading(false);
-//         return;
-//       }
-
-//       const res = await fetch(endpoint, {
-//         method: 'POST',
-//         headers: { 'Content-Type': 'application/json' },
-//         body: JSON.stringify(body)
-//       });
-//       const data = await res.json();
-//       setRecommendations(data?.recommendations || []);
-//     } catch (error) {
-//       console.error('Failed to fetch recommendations:', error);
-//     } finally {
-//       setRecommendationsLoading(false);
-//     }
-//   };
-
-//   // --- TRAILER LOGIC ---
-//   const fetchTrailerForEntertainment = async (item) => {
-//     if (!item || !item.poster_path) return;
-
-//     try {
-//       const response = await fetch('https://hero.boltluna.io/api/trailer', {
-//         method: 'POST',
-//         headers: { 'Content-Type': 'application/json' },
-//         body: JSON.stringify({
-//           media_type: item.type || 'movie',
-//           id: item.id
-//         })
-//       });
-//       const data = await response.json();
-//       setTrailerKey(data?.trailerKey || null);
-//     } catch (error) {
-//       console.error('Error fetching trailer key:', error);
-//       setTrailerKey(null);
-//     }
-//   };
-
-//   // Open modal
-//   const openDetailsModal = (item) => {
-//     setSelectedItem(item);
-//     setOpen(true);
-//     setRecommendations([]);
-//     setTrailerKey(null);
-
-//     // Fetch recommendations
-//     fetchRecommendations(item);
-
-//     // If entertainment item, attempt trailer fetch
-//     if (item?.poster_path) {
-//       fetchTrailerForEntertainment(item);
-//     }
-//   };
-
-//   // Close modal
-//   const closeDetailsModal = () => {
-//     setOpen(false);
-//     setSelectedItem(null);
-//     setRecommendations([]);
-//     setTrailerKey(null);
-//   };
-
-//   // Tapping a recommended item in the modal
-//   const handleRecommendationPress = (recItem) => {
-//     setSelectedItem(recItem);
-//     setRecommendations([]);
-//     setTrailerKey(null);
-//     fetchRecommendations(recItem);
-
-//     if (recItem?.poster_path) {
-//       fetchTrailerForEntertainment(recItem);
-//     }
-//   };
-
-//   // RENDER for each horizontal row
-//   const renderHorizontalItem = ({ item }) => (
-//     <TouchableOpacity onPress={() => openDetailsModal(item)}>
-//       <View style={{ width: 160, marginRight: 16 }}>
-//         <View style={{ position: 'relative' }}>
-//           {/* Marvel item (using thumbnail & helper) or TMDb item */}
-//           {item?.thumbnail?.path && item?.thumbnail?.extension ? (
-//             <Image
-//               source={{ uri: getSecureImageUrl(item.thumbnail) }}
-//               style={{ width: '100%', height: 240, borderRadius: 8 }}
-//               resizeMode="cover"
-//             />
-//           ) : item?.poster_path ? (
-//             <Image
-//               source={{ uri: `https://image.tmdb.org/t/p/original${item.poster_path}` }}
-//               style={{ width: '100%', height: 240, borderRadius: 8 }}
-//               resizeMode="cover"
-//             />
-//           ) : (
-//             <View
-//               style={{
-//                 width: '100%',
-//                 height: 240,
-//                 borderRadius: 8,
-//                 backgroundColor: '#ccc',
-//                 justifyContent: 'center',
-//                 alignItems: 'center'
-//               }}
-//             >
-//               <Text>No Image</Text>
-//             </View>
-//           )}
-
-//           {/* Heart overlay */}
-//           <TouchableOpacity
-//             onPress={() => toggleSaveItem(item)}
-//             style={{ position: 'absolute', top: 8, right: 8 }}
-//           >
-//             {isItemSaved(item) ? (
-//               <FontAwesome name="heart" size={24} color="red" />
-//             ) : (
-//               <FontAwesome name="heart-o" size={24} color="red" />
-//             )}
-//           </TouchableOpacity>
-//         </View>
-//         <Text
-//           style={{
-//             marginTop: 8,
-//             textAlign: 'center',
-//             fontWeight: '600',
-//             color: '#2D3748'
-//           }}
-//         >
-//           {item.name || item.title || 'Untitled'}
-//         </Text>
-//       </View>
-//     </TouchableOpacity>
-//   );
-
-//   return (
-//     <SafeAreaView style={{ flex: 1, backgroundColor: '#F7FAFC' }}>
-//       {/* Container with padding */}
-//       <View style={{ padding: 16, flex: 1 }}>
-//         {/* Header / Title */}
-//         <View style={{ marginBottom: 16 }}>
-//           <Text style={{ fontSize: 24, fontWeight: '700', color: '#4A5568' }}>
-//             Search
-//           </Text>
-//         </View>
-
-//         {/* Search Row */}
-//         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-//           <TextInput
-//             style={{
-//               flex: 1,
-//               borderWidth: 1,
-//               borderColor: '#ccc',
-//               borderRadius: 8,
-//               paddingHorizontal: 8,
-//               paddingVertical: 6,
-//               marginRight: 8,
-//               backgroundColor: '#fff'
-//             }}
-//             placeholder="Search (e.g. 'Wolverine')"
-//             value={query}
-//             onChangeText={(text) => setQuery(text)}
-//             onSubmitEditing={handleSearch}
-//           />
-//           <TouchableOpacity
-//             style={{
-//               backgroundColor: '#007bff',
-//               borderRadius: 8,
-//               paddingHorizontal: 12,
-//               paddingVertical: 8
-//             }}
-//             onPress={handleSearch}
-//           >
-//             <Text style={{ color: '#fff', fontWeight: 'bold' }}>Search</Text>
-//           </TouchableOpacity>
-//         </View>
-
-//         {/* Loading indicator */}
-//         {loading && (
-//           <View style={{ marginTop: 16 }}>
-//             <ActivityIndicator animating size="large" color="#000" />
-//           </View>
-//         )}
-
-//         {/* Error text */}
-//         {!!error && (
-//           <Text style={{ color: 'red', textAlign: 'center', marginTop: 8 }}>
-//             {error}
-//           </Text>
-//         )}
-
-//         {/* Scrollable area for the 3 categories */}
-//         <ScrollView style={{ marginTop: 16 }}>
-//           {/* Characters */}
-//           {characters.length > 0 && (
-//             <View style={{ marginBottom: 24 }}>
-//               <View
-//                 style={{
-//                   flexDirection: 'row',
-//                   justifyContent: 'space-between',
-//                   alignItems: 'center'
-//                 }}
-//               >
-//                 <Text style={{ fontSize: 24, fontWeight: '600', color: '#4A5568' }}>
-//                   Characters
-//                 </Text>
-//                 <Button
-//                   mode="contained"
-//                   onPress={() => setShowAllCharacters(!showAllCharacters)}
-//                 >
-//                   {showAllCharacters ? 'View Less' : 'View All'}
-//                 </Button>
-//               </View>
-//               <FlatList
-//                 data={charactersToRender}
-//                 keyExtractor={(item, idx) => `char-${item.id || idx}`}
-//                 renderItem={renderHorizontalItem}
-//                 horizontal
-//                 showsHorizontalScrollIndicator={false}
-//                 contentContainerStyle={{ marginTop: 16 }}
-//                 ItemSeparatorComponent={() => <View style={{ width: 16 }} />}
-//               />
-//             </View>
-//           )}
-
-//           {/* Comics */}
-//           {comics.length > 0 && (
-//             <View style={{ marginBottom: 24 }}>
-//               <View
-//                 style={{
-//                   flexDirection: 'row',
-//                   justifyContent: 'space-between',
-//                   alignItems: 'center'
-//                 }}
-//               >
-//                 <Text style={{ fontSize: 24, fontWeight: '600', color: '#4A5568' }}>
-//                   Comics
-//                 </Text>
-//                 <Button
-//                   mode="contained"
-//                   onPress={() => setShowAllComics(!showAllComics)}
-//                 >
-//                   {showAllComics ? 'View Less' : 'View All'}
-//                 </Button>
-//               </View>
-//               <FlatList
-//                 data={comicsToRender}
-//                 keyExtractor={(item, idx) => `comic-${item.id || idx}`}
-//                 renderItem={renderHorizontalItem}
-//                 horizontal
-//                 showsHorizontalScrollIndicator={false}
-//                 contentContainerStyle={{ marginTop: 16 }}
-//                 ItemSeparatorComponent={() => <View style={{ width: 16 }} />}
-//               />
-//             </View>
-//           )}
-
-//           {/* Entertainment */}
-//           {entertainment.length > 0 && (
-//             <View style={{ marginBottom: 24 }}>
-//               <View
-//                 style={{
-//                   flexDirection: 'row',
-//                   justifyContent: 'space-between',
-//                   alignItems: 'center'
-//                 }}
-//               >
-//                 <Text style={{ fontSize: 24, fontWeight: '600', color: '#4A5568' }}>
-//                   Entertainment
-//                 </Text>
-//                 <Button
-//                   mode="contained"
-//                   onPress={() => setShowAllEntertainment(!showAllEntertainment)}
-//                 >
-//                   {showAllEntertainment ? 'View Less' : 'View All'}
-//                 </Button>
-//               </View>
-//               <FlatList
-//                 data={entertainmentToRender}
-//                 keyExtractor={(item, idx) => `ent-${item.id || idx}`}
-//                 renderItem={renderHorizontalItem}
-//                 horizontal
-//                 showsHorizontalScrollIndicator={false}
-//                 contentContainerStyle={{ marginTop: 16 }}
-//                 ItemSeparatorComponent={() => <View style={{ width: 16 }} />}
-//               />
-//             </View>
-//           )}
-//         </ScrollView>
-
-//         {/* Modal */}
-//         <Portal>
-//           <Dialog visible={open} onDismiss={closeDetailsModal}>
-//             {/* Header with Title + Heart icon */}
-//             <View
-//               style={{
-//                 flexDirection: 'row',
-//                 alignItems: 'center',
-//                 justifyContent: 'space-between',
-//                 paddingHorizontal: 16,
-//                 paddingTop: 16
-//               }}
-//             >
-//               <Dialog.Title style={{ flex: 1, fontWeight: "bold", color: '#2D3748' }}>
-//                 {selectedItem?.name || selectedItem?.title || 'Details'}
-//               </Dialog.Title>
-//               {selectedItem && (
-//                 <TouchableOpacity onPress={() => toggleSaveItem(selectedItem)}>
-//                   {isItemSaved(selectedItem) ? (
-//                     <FontAwesome name="heart" size={24} color="red" />
-//                   ) : (
-//                     <FontAwesome name="heart-o" size={24} color="red" />
-//                   )}
-//                 </TouchableOpacity>
-//               )}
-//             </View>
-//             <Dialog.Content>
-//               {selectedItem && (
-//                 <ScrollView>
-//                   {/* Trailer or Image */}
-//                   {trailerKey ? (
-//                     <YoutubePlayer
-//                       height={trailerHeight}
-//                       width={trailerWidth}
-//                       play={false}
-//                       videoId={trailerKey}
-//                     />
-//                   ) : selectedItem?.thumbnail?.path && selectedItem?.thumbnail?.extension ? (
-//                     <Image
-//                       source={{ uri: getSecureImageUrl(selectedItem.thumbnail) }}
-//                       style={{
-//                         width: '100%',
-//                         height: trailerHeight,
-//                         borderRadius: 8,
-//                         marginBottom: 8
-//                       }}
-//                       resizeMode="cover"
-//                     />
-//                   ) : selectedItem?.poster_path ? (
-//                     <Image
-//                       source={{ uri: `https://image.tmdb.org/t/p/original${selectedItem.poster_path}` }}
-//                       style={{
-//                         width: '100%',
-//                         height: trailerHeight,
-//                         borderRadius: 8,
-//                         marginBottom: 8
-//                       }}
-//                       resizeMode="cover"
-//                     />
-//                   ) : (
-//                     <View
-//                       style={{
-//                         width: '100%',
-//                         height: trailerHeight,
-//                         borderRadius: 8,
-//                         backgroundColor: '#ccc',
-//                         justifyContent: 'center',
-//                         alignItems: 'center',
-//                         marginBottom: 8
-//                       }}
-//                     >
-//                       <Text>No Image</Text>
-//                     </View>
-//                   )}
-
-//                   {/* Description */}
-//                   <Text style={{ marginBottom: 8, marginTop: 20 }}>
-//                     {selectedItem.description ||
-//                       selectedItem.overview ||
-//                       'No description available'}
-//                   </Text>
-
-//                   {/* Recommendations */}
-//                   <Text style={{fontWeight: '700', marginBottom: 8, marginTop: 25 }}>
-//                     You Might Also Like
-//                   </Text>
-//                   {recommendationsLoading ? (
-//                     <ActivityIndicator animating={true} />
-//                   ) : (
-//                     <FlatList
-//                       data={recommendations}
-//                       keyExtractor={(_, i) => `rec-${i}`}
-//                       horizontal
-//                       showsHorizontalScrollIndicator={false}
-//                       renderItem={({ item: recItem }) => (
-//                         <TouchableOpacity onPress={() => handleRecommendationPress(recItem)}>
-//                           <View style={{ width: 120, marginRight: 16 }}>
-//                             {/* Recommendation image */}
-//                             {recItem?.thumbnail?.path && recItem?.thumbnail?.extension ? (
-//                               <Image
-//                                 source={{ uri: getSecureImageUrl(recItem.thumbnail) }}
-//                                 style={{ width: '100%', height: 100, borderRadius: 8 }}
-//                                 resizeMode="cover"
-//                               />
-//                             ) : recItem?.poster_path ? (
-//                               <Image
-//                                 source={{ uri: `https://image.tmdb.org/t/p/original${recItem.poster_path}` }}
-//                                 style={{ width: '100%', height: 100, borderRadius: 8 }}
-//                                 resizeMode="cover"
-//                               />
-//                             ) : (
-//                               <View
-//                                 style={{
-//                                   width: '100%',
-//                                   height: 100,
-//                                   borderRadius: 8,
-//                                   backgroundColor: '#ccc',
-//                                   justifyContent: 'center',
-//                                   alignItems: 'center'
-//                                 }}
-//                               >
-//                                 <Text>No Image</Text>
-//                               </View>
-//                             )}
-//                             <Text style={{ marginTop: 4, textAlign: 'center' }}>
-//                               {recItem?.title || recItem?.name}
-//                             </Text>
-//                           </View>
-//                         </TouchableOpacity>
-//                       )}
-//                     />
-//                   )}
-//                 </ScrollView>
-//               )}
-//             </Dialog.Content>
-//             {/* Added bottom padding to ensure the Close button is fully visible */}
-//             <Dialog.Actions style={{ paddingBottom: 20 }}>
-//               <Button onPress={closeDetailsModal}>
-//                 <Text style={{ fontSize: 15 }}>Close</Text>
-//               </Button>
-//             </Dialog.Actions>
-//           </Dialog>
-//         </Portal>
-//       </View>
-//     </SafeAreaView>
-//   );
-// }
-
-
-
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext } from 'react';                // import React and hooks
+// Core React Native components
 import {
-  View,
-  Text,
-  Image,
-  SafeAreaView,
-  TextInput,
-  TouchableOpacity,
-  FlatList,
-  ScrollView,
-  StyleSheet,
-  Dimensions
+  View,            // basic container
+  Text,            // text display
+  Image,           // image display
+  SafeAreaView,    // handles device safe area
+  TextInput,       // text input field
+  TouchableOpacity,// touchable wrapper
+  FlatList,        // optimized list
+  ScrollView,      // scroll container
+  Dimensions       // get screen dimensions
 } from 'react-native';
-import { Button, Dialog, Portal, ActivityIndicator } from 'react-native-paper';
-import { FontAwesome } from '@expo/vector-icons';
-import YoutubePlayer from 'react-native-youtube-iframe';
-import { SavedContext } from '../context/savedContext';
+// Paper UI components
+import { Button, Dialog, Portal, ActivityIndicator } from 'react-native-paper'; // import UI library
+// Icon library
+import { FontAwesome } from '@expo/vector-icons';                               // import icon pack
+// YouTube player
+import YoutubePlayer from 'react-native-youtube-iframe';                        // embed YouTube
+// Saved items context
+import { SavedContext } from '../context/savedContext';                         // global saved-items
 
-// Helper function to return a secure Marvel image URL
-const getSecureImageUrl = (thumbnail) => {
-  if (!thumbnail) return "";
-  const path = thumbnail.path.startsWith("http:")
-    ? thumbnail.path.replace("http:", "https:")
-    : thumbnail.path;
-  return `${path}.${thumbnail.extension}`;
+// Helper: ensure Marvel thumbnail URL is HTTPS
+const getSecureImageUrl = (thumbnail) => {                                     
+  if (!thumbnail) return "";                                                    // no thumbnail → empty
+  const path = thumbnail.path.startsWith('http:')                               
+    ? thumbnail.path.replace('http:', 'https:')                                 // force https
+    : thumbnail.path;                                                          
+  return `${path}.${thumbnail.extension}`;                                       // add extension
 };
 
-export default function Search() {
-  // Query state
-  const [query, setQuery] = useState('');
+export default function Search() {                                             
+  // search query state
+  const [query, setQuery] = useState('');                                       
 
-  // Results
-  const [characters, setCharacters] = useState([]);
-  const [comics, setComics] = useState([]);
-  const [entertainment, setEntertainment] = useState([]);
+  // results state
+  const [characters, setCharacters] = useState([]);                             
+  const [comics, setComics] = useState([]);                                     
+  const [entertainment, setEntertainment] = useState([]);                       
 
-  // Show/hide "View All" toggles
-  const [showAllCharacters, setShowAllCharacters] = useState(false);
-  const [showAllComics, setShowAllComics] = useState(false);
-  const [showAllEntertainment, setShowAllEntertainment] = useState(false);
+  // toggles for “View All”
+  const [showAllCharacters, setShowAllCharacters] = useState(false);            
+  const [showAllComics, setShowAllComics] = useState(false);                    
+  const [showAllEntertainment, setShowAllEntertainment] = useState(false);      
 
-  // Modal state
-  const [open, setOpen] = useState(false);
-  const [selectedItem, setSelectedItem] = useState(null);
+  // modal state
+  const [open, setOpen] = useState(false);                                      
+  const [selectedItem, setSelectedItem] = useState(null);                       
 
-  // Recommendations
-  const [recommendations, setRecommendations] = useState([]);
-  const [recommendationsLoading, setRecommendationsLoading] = useState(false);
+  // recommendations state
+  const [recommendations, setRecommendations] = useState([]);                  
+  const [recommendationsLoading, setRecommendationsLoading] = useState(false);  
 
-  // Trailer key for Entertainment items
-  const [trailerKey, setTrailerKey] = useState(null);
+  // trailer key for entertainment
+  const [trailerKey, setTrailerKey] = useState(null);                           
 
-  // Loading / Error
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  // loading & error
+  const [loading, setLoading] = useState(false);                                
+  const [error, setError] = useState('');                                       
 
-  // Global saved items context
-  const { savedItems, toggleSaveItem } = useContext(SavedContext);
+  // context for saved items
+  const { savedItems, toggleSaveItem } = useContext(SavedContext);              
 
-  // Determine responsive dimensions for trailer / image in modal.
-  const screenWidth = Dimensions.get("window").width;
-  const trailerWidth = screenWidth - 32; // 16px horizontal padding on each side
-  const trailerHeight = trailerWidth * (9 / 16);
+  // responsive dimensions for trailer/image
+  const screenWidth = Dimensions.get('window').width;                           
+  const trailerWidth = screenWidth - 32;      // account for 16px padding each side
+  const trailerHeight = trailerWidth * (9 / 16); // 16:9 aspect ratio
 
-  // Perform the three searches in parallel
-  const handleSearch = async () => {
-    if (!query.trim()) {
-      // Clear if empty
-      setCharacters([]);
-      setComics([]);
-      setEntertainment([]);
-      setError('');
-      return;
+  // perform parallel searches
+  const handleSearch = async () => {                                            
+    if (!query.trim()) {                                                         
+      setCharacters([]); setComics([]); setEntertainment([]); setError('');       
+      return;                                                                    
     }
-
-    setLoading(true);
-    setError('');
+    setLoading(true); setError('');                                              
 
     try {
-      const [charRes, comicRes, entRes] = await Promise.all([
-        fetch('https://hero.boltluna.io/api/charactersearch', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ characterSearch: query })
+      const [charRes, comicRes, entRes] = await Promise.all([                    
+        fetch('https://hero.boltluna.io/api/charactersearch', {                  
+          method: 'POST', headers: {'Content-Type':'application/json'},          
+          body: JSON.stringify({ characterSearch: query })                      
         }),
-        fetch('https://hero.boltluna.io/api/comicsearch', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query })
+        fetch('https://hero.boltluna.io/api/comicsearch', {                      
+          method: 'POST', headers: {'Content-Type':'application/json'},          
+          body: JSON.stringify({ query })                                        
         }),
-        fetch('https://hero.boltluna.io/api/entertainmentsearch', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ entertainmentSearch: query })
+        fetch('https://hero.boltluna.io/api/entertainmentsearch', {               
+          method: 'POST', headers: {'Content-Type':'application/json'},          
+          body: JSON.stringify({ entertainmentSearch: query })                   
         })
       ]);
 
-      // Only parse JSON if the HTTP response was OK; otherwise default to empty array
-      const characterData = charRes.ok
-        ? await charRes.json()
-        : [];
-      const comicData = comicRes.ok
-        ? await comicRes.json()
-        : [];
-      const entertainmentData = entRes.ok
-        ? await entRes.json()
-        : [];
+      const characterData = charRes.ok ? await charRes.json() : [];             
+      const comicData     = comicRes.ok ? await comicRes.json()     : [];      
+      const entData       = entRes.ok ? await entRes.json()        : [];       
 
-      // Ensure we only set actual arrays
-      setCharacters(Array.isArray(characterData) ? characterData : []);
-      setComics(Array.isArray(comicData) ? comicData : []);
-      setEntertainment(Array.isArray(entertainmentData) ? entertainmentData : []);
+      setCharacters(Array.isArray(characterData) ? characterData : []);        
+      setComics(Array.isArray(comicData)         ? comicData     : []);        
+      setEntertainment(Array.isArray(entData)    ? entData       : []);        
     } catch (err) {
-      console.error('Error performing search:', err);
-      setError('Something went wrong. Please try again.');
-
-      // Reset to empty arrays on any error
-      setCharacters([]);
-      setComics([]);
-      setEntertainment([]);
+      console.error('Error performing search:', err);                          
+      setError('Something went wrong. Please try again.');                     
+      setCharacters([]); setComics([]); setEntertainment([]);                   
     } finally {
-      setLoading(false);
+      setLoading(false);                                                        
     }
   };
 
-  // Safety wrappers: ensure we always have true arrays
-  const safeCharacters = Array.isArray(characters) ? characters : [];
-  const safeComics = Array.isArray(comics) ? comics : [];
-  const safeEntertainment = Array.isArray(entertainment) ? entertainment : [];
+  // ensure arrays
+  const safeCharacters    = Array.isArray(characters)    ? characters    : []; 
+  const safeComics        = Array.isArray(comics)        ? comics        : []; 
+  const safeEntertainment = Array.isArray(entertainment) ? entertainment : []; 
 
-  // Decide how many items to show for each row
-  const charactersToRender = showAllCharacters
-    ? safeCharacters
-    : safeCharacters.slice(0, 10);
-  const comicsToRender = showAllComics
-    ? safeComics
-    : safeComics.slice(0, 10);
-  const entertainmentToRender = showAllEntertainment
-    ? safeEntertainment
-    : safeEntertainment.slice(0, 10);
+  // slice for “View All”
+  const charactersToRender    = showAllCharacters ? safeCharacters    : safeCharacters.slice(0,10);
+  const comicsToRender        = showAllComics     ? safeComics        : safeComics.slice(0,10);
+  const entertainmentToRender = showAllEntertainment? safeEntertainment: safeEntertainment.slice(0,10);
 
-  // Helper: check if item is saved
-  const isItemSaved = (item) =>
-    !!item?.id && savedItems.some((saved) => saved.id === item.id);
+  // check if item is saved
+  const isItemSaved = (item) => !!item?.id && savedItems.some((s) => s.id === item.id);
 
-  // --- RECOMMENDATIONS LOGIC ---
+  // fetch recommendations
   const fetchRecommendations = async (item) => {
-    if (!item) return;
-
-    setRecommendations([]);
-    setRecommendationsLoading(true);
+    if (!item) return;                                                        
+    setRecommendations([]); setRecommendationsLoading(true);                 
 
     try {
-      let endpoint = '';
-      let body = {};
-
+      let endpoint = '', body = {};
       if (item.poster_path || item.overview) {
         endpoint = 'https://hero.boltluna.io/api/entertainmentrecommendation';
-        body = {
-          itemDetails: {
-            title: item.title || item.name,
-            type: 'Entertainment',
-            description: item.overview || ''
-          }
-        };
+        body = { itemDetails: { title: item.title||item.name, type:'Entertainment', description:item.overview||'' }};
       } else if (item.title && item.thumbnail) {
         endpoint = 'https://hero.boltluna.io/api/comicrecommendation';
-        body = {
-          itemDetails: {
-            title: item.title,
-            type: 'Comic',
-            description: item.description || ''
-          }
-        };
+        body = { itemDetails: { title: item.title, type:'Comic', description:item.description||'' }};
       } else {
         endpoint = 'https://hero.boltluna.io/api/characterrecommendation';
-        body = {
-          itemDetails: {
-            title: item.name,
-            type: 'Character',
-            description: item.description || ''
-          }
-        };
+        body = { itemDetails: { title: item.name, type:'Character', description:item.description||'' }};
       }
-
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-      const data = await res.json();
-      setRecommendations(data?.recommendations || []);
+      const res = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+      const data = await res.json();                                         
+      setRecommendations(data?.recommendations||[]);
     } catch (err) {
-      console.error('Failed to fetch recommendations:', err);
+      console.error('Failed to fetch recommendations:', err);               
     } finally {
-      setRecommendationsLoading(false);
+      setRecommendationsLoading(false);                                      
     }
   };
 
-  // --- TRAILER LOGIC ---
+  // fetch trailer for entertainment
   const fetchTrailerForEntertainment = async (item) => {
-    if (!item || !item.poster_path) return;
+    if (!item?.poster_path) return;                                           
     try {
       const response = await fetch('https://hero.boltluna.io/api/trailer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          media_type: item.type || 'movie',
-          id: item.id
-        })
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ media_type:item.type||'movie', id:item.id })
       });
-      const data = await response.json();
-      setTrailerKey(data?.trailerKey || null);
+      const data = await response.json();                                    
+      setTrailerKey(data?.trailerKey||null);                                 
     } catch (err) {
-      console.error('Error fetching trailer key:', err);
-      setTrailerKey(null);
+      console.error('Error fetching trailer key:', err);                      
+      setTrailerKey(null);                                                    
     }
   };
 
-  // Open modal
+  // open detail modal
   const openDetailsModal = (item) => {
-    setSelectedItem(item);
-    setOpen(true);
-    setRecommendations([]);
-    setTrailerKey(null);
-    fetchRecommendations(item);
-    if (item?.poster_path) {
-      fetchTrailerForEntertainment(item);
-    }
+    setSelectedItem(item); setOpen(true);                                    
+    setRecommendations([]); setTrailerKey(null);                              
+    fetchRecommendations(item);                                               
+    if (item?.poster_path) fetchTrailerForEntertainment(item);                
   };
 
-  // Close modal
+  // close detail modal
   const closeDetailsModal = () => {
-    setOpen(false);
-    setSelectedItem(null);
-    setRecommendations([]);
-    setTrailerKey(null);
+    setOpen(false); setSelectedItem(null);                                    
+    setRecommendations([]); setTrailerKey(null);                              
   };
 
-  // Handle tapping a recommendation
+  // handle tapping a recommendation
   const handleRecommendationPress = (recItem) => {
-    setSelectedItem(recItem);
-    setRecommendations([]);
-    setTrailerKey(null);
-    fetchRecommendations(recItem);
-    if (recItem?.poster_path) {
-      fetchTrailerForEntertainment(recItem);
-    }
+    setSelectedItem(recItem); setRecommendations([]); setTrailerKey(null);    
+    fetchRecommendations(recItem);                                            
+    if (recItem?.poster_path) fetchTrailerForEntertainment(recItem);          
   };
 
-  // Render for each horizontal item
+  // render each horizontal card
   const renderHorizontalItem = ({ item }) => (
-    <TouchableOpacity onPress={() => openDetailsModal(item)}>
-      <View style={{ width: 160, marginRight: 16 }}>
-        <View style={{ position: 'relative' }}>
-          {item?.thumbnail?.path && item?.thumbnail?.extension ? (
-            <Image
-              source={{ uri: getSecureImageUrl(item.thumbnail) }}
-              style={{ width: '100%', height: 240, borderRadius: 8 }}
-              resizeMode="cover"
-            />
-          ) : item?.poster_path ? (
-            <Image
-              source={{ uri: `https://image.tmdb.org/t/p/original${item.poster_path}` }}
-              style={{ width: '100%', height: 240, borderRadius: 8 }}
-              resizeMode="cover"
-            />
-          ) : (
-            <View
-              style={{
-                width: '100%',
-                height: 240,
-                borderRadius: 8,
-                backgroundColor: '#ccc',
-                justifyContent: 'center',
-                alignItems: 'center'
-              }}
-            >
-              <Text>No Image</Text>
-            </View>
-          )}
-          <TouchableOpacity
-            onPress={() => toggleSaveItem(item)}
-            style={{ position: 'absolute', top: 8, right: 8 }}
-          >
-            {isItemSaved(item) ? (
-              <FontAwesome name="heart" size={24} color="red" />
-            ) : (
-              <FontAwesome name="heart-o" size={24} color="red" />
-            )}
-          </TouchableOpacity>
-        </View>
-        <Text
-          style={{
-            marginTop: 8,
-            textAlign: 'center',
-            fontWeight: '600',
-            color: '#2D3748'
-          }}
+    <TouchableOpacity 
+      className="w-40 mr-4"                                           
+      onPress={() => openDetailsModal(item)}                       
+    >
+      <View className="relative">                                     {/* wrapper for image & icon */}
+        {item.thumbnail?.path && item.thumbnail?.extension ? (     
+          <Image
+            source={{ uri:getSecureImageUrl(item.thumbnail) }}     
+            className="w-full h-60 rounded-lg"                      
+            resizeMode="cover"
+          />
+        ) : item.poster_path ? (
+          <Image
+            source={{ uri:`https://image.tmdb.org/t/p/original${item.poster_path}` }}
+            className="w-full h-60 rounded-lg"
+            resizeMode="cover"
+          />
+        ) : (
+          <View className="w-full h-60 bg-gray-300 items-center justify-center rounded-lg">
+            <Text>No Image</Text>                                  
+          </View>
+        )}
+        <TouchableOpacity
+          className="absolute top-2 right-2"
+          onPress={() => toggleSaveItem(item)}
         >
-          {item.name || item.title || 'Untitled'}
-        </Text>
+          {isItemSaved(item) ? (
+            <FontAwesome name="heart" size={24} color="red" />      
+          ) : (
+            <FontAwesome name="heart-o" size={24} color="red" />    
+          )}
+        </TouchableOpacity>
       </View>
+      <Text className="mt-2 text-center font-semibold text-gray-800">
+        {item.name || item.title || 'Untitled'}                     
+      </Text>
     </TouchableOpacity>
   );
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#F7FAFC' }}>
-      <View style={{ padding: 16, flex: 1 }}>
-        <View style={{ marginBottom: 16 }}>
-          <Text style={{ fontSize: 24, fontWeight: '700', color: '#4A5568' }}>
-            Search
-          </Text>
+    <SafeAreaView className="flex-1 bg-gray-50">                         
+      <View className="flex-1 p-4">                                      
+        <View className="mb-4">                                         
+          <Text className="text-2xl font-bold text-gray-600">Search</Text> 
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+
+        <View className="flex-row items-center">                        
           <TextInput
-            style={{
-              flex: 1,
-              borderWidth: 1,
-              borderColor: '#ccc',
-              borderRadius: 8,
-              paddingHorizontal: 8,
-              paddingVertical: 6,
-              marginRight: 8,
-              backgroundColor: '#fff'
-            }}
+            className="flex-1 border border-gray-300 bg-white rounded-lg px-2 py-1 mr-2"
             placeholder="Search (e.g. 'Wolverine')"
             value={query}
             onChangeText={setQuery}
             onSubmitEditing={handleSearch}
           />
           <TouchableOpacity
-            style={{
-              backgroundColor: '#007bff',
-              borderRadius: 8,
-              paddingHorizontal: 12,
-              paddingVertical: 8
-            }}
+            className="bg-blue-600 rounded-lg px-3 py-2"
             onPress={handleSearch}
           >
-            <Text style={{ color: '#fff', fontWeight: 'bold' }}>Search</Text>
+            <Text className="text-white font-bold">Search</Text>        
           </TouchableOpacity>
         </View>
-        {loading && (
-          <View style={{ marginTop: 16 }}>
-            <ActivityIndicator animating size="large" color="#000" />
-          </View>
+
+        {loading && (                                                   
+          <ActivityIndicator className="mt-4" animating size="large" color="#000" />
         )}
-        {!!error && (
-          <Text style={{ color: 'red', textAlign: 'center', marginTop: 8 }}>
-            {error}
-          </Text>
+
+        {!!error && (                                                   
+          <Text className="text-red-600 text-center mt-2">{error}</Text>
         )}
-        <ScrollView style={{ marginTop: 16 }}>
+
+        <ScrollView className="mt-4">                                  
+          {/* Characters row */}
           {safeCharacters.length > 0 && (
-            <View style={{ marginBottom: 24 }}>
-              <View
-                style={{
-                  flexDirection: 'row',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}
-              >
-                <Text style={{ fontSize: 24, fontWeight: '600', color: '#4A5568' }}>
-                  Characters
-                </Text>
-                <Button
-                  mode="contained"
-                  onPress={() => setShowAllCharacters(!showAllCharacters)}
-                >
+            <View className="mb-6">
+              <View className="flex-row justify-between items-center">
+                <Text className="text-xl font-semibold text-gray-600">Characters</Text>
+                <Button mode="contained" onPress={() => setShowAllCharacters(!showAllCharacters)}>
                   {showAllCharacters ? 'View Less' : 'View All'}
                 </Button>
               </View>
               <FlatList
                 data={charactersToRender}
-                keyExtractor={(item, idx) => `char-${item.id || idx}`}
+                keyExtractor={(item,idx) => `char-${item.id||idx}`}
                 renderItem={renderHorizontalItem}
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={{ marginTop: 16 }}
-                ItemSeparatorComponent={() => <View style={{ width: 16 }} />}
+                ItemSeparatorComponent={() => <View className="w-4" />}
               />
             </View>
           )}
+
+          {/* Comics row */}
           {safeComics.length > 0 && (
-            <View style={{ marginBottom: 24 }}>
-              <View
-                style={{
-                  flexDirection: 'row',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}
-              >
-                <Text style={{ fontSize: 24, fontWeight: '600', color: '#4A5568' }}>
-                  Comics
-                </Text>
-                <Button
-                  mode="contained"
-                  onPress={() => setShowAllComics(!showAllComics)}
-                >
+            <View className="mb-6">
+              <View className="flex-row justify-between items-center">
+                <Text className="text-xl font-semibold text-gray-600">Comics</Text>
+                <Button mode="contained" onPress={() => setShowAllComics(!showAllComics)}>
                   {showAllComics ? 'View Less' : 'View All'}
                 </Button>
               </View>
               <FlatList
                 data={comicsToRender}
-                keyExtractor={(item, idx) => `comic-${item.id || idx}`}
+                keyExtractor={(item,idx) => `comic-${item.id||idx}`}
                 renderItem={renderHorizontalItem}
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={{ marginTop: 16 }}
-                ItemSeparatorComponent={() => <View style={{ width: 16 }} />}
+                ItemSeparatorComponent={() => <View className="w-4" />}
               />
             </View>
           )}
+
+          {/* Entertainment row */}
           {safeEntertainment.length > 0 && (
-            <View style={{ marginBottom: 24 }}>
-              <View
-                style={{
-                  flexDirection: 'row',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}
-              >
-                <Text style={{ fontSize: 24, fontWeight: '600', color: '#4A5568' }}>
-                  Entertainment
-                </Text>
-                <Button
-                  mode="contained"
-                  onPress={() => setShowAllEntertainment(!showAllEntertainment)}
-                >
+            <View className="mb-6">
+              <View className="flex-row justify-between items-center">
+                <Text className="text-xl font-semibold text-gray-600">Entertainment</Text>
+                <Button mode="contained" onPress={() => setShowAllEntertainment(!showAllEntertainment)}>
                   {showAllEntertainment ? 'View Less' : 'View All'}
                 </Button>
               </View>
               <FlatList
                 data={entertainmentToRender}
-                keyExtractor={(item, idx) => `ent-${item.id || idx}`}
+                keyExtractor={(item,idx) => `ent-${item.id||idx}`}
                 renderItem={renderHorizontalItem}
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={{ marginTop: 16 }}
-                ItemSeparatorComponent={() => <View style={{ width: 16 }} />}
+                ItemSeparatorComponent={() => <View className="w-4" />}
               />
             </View>
           )}
         </ScrollView>
+
+        {/* Detail modal */}
         <Portal>
           <Dialog visible={open} onDismiss={closeDetailsModal}>
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                paddingHorizontal: 16,
-                paddingTop: 16
-              }}
-            >
+            <View className="flex-row items-center justify-between px-4 pt-4">
               <Dialog.Title style={{ flex: 1, fontWeight: 'bold', color: '#2D3748' }}>
                 {selectedItem?.name || selectedItem?.title || 'Details'}
               </Dialog.Title>
@@ -2281,77 +347,60 @@ export default function Search() {
                       play={false}
                       videoId={trailerKey}
                     />
-                  ) : selectedItem?.thumbnail?.path && selectedItem?.thumbnail?.extension ? (
+                  ) : selectedItem.thumbnail?.path && selectedItem.thumbnail?.extension ? (
                     <Image
                       source={{ uri: getSecureImageUrl(selectedItem.thumbnail) }}
-                      style={{ width: '100%', height: trailerHeight, borderRadius: 8, marginBottom: 8 }}
+                      className="rounded-lg mb-4"
+                      style={{ width: '100%', height: trailerHeight }}
                       resizeMode="cover"
                     />
-                  ) : selectedItem?.poster_path ? (
+                  ) : selectedItem.poster_path ? (
                     <Image
                       source={{ uri: `https://image.tmdb.org/t/p/original${selectedItem.poster_path}` }}
-                      style={{ width: '100%', height: trailerHeight, borderRadius: 8, marginBottom: 8 }}
+                      className="rounded-lg mb-4"
+                      style={{ width: '100%', height: trailerHeight }}
                       resizeMode="cover"
                     />
                   ) : (
-                    <View
-                      style={{
-                        width: '100%',
-                        height: trailerHeight,
-                        borderRadius: 8,
-                        backgroundColor: '#ccc',
-                        justifyContent: 'center',
-                        alignItems: 'center',
-                        marginBottom: 8
-                      }}
-                    >
+                    <View className="w-full h-[${trailerHeight}px] bg-gray-300 rounded-lg mb-4 items-center justify-center">
                       <Text>No Image</Text>
                     </View>
                   )}
-                  <Text style={{ marginBottom: 8, marginTop: 20 }}>
+                  <Text className="my-2">
                     {selectedItem.description || selectedItem.overview || 'No description available'}
                   </Text>
-                  <Text style={{ fontWeight: '700', marginBottom: 8, marginTop: 25 }}>
-                    You Might Also Like
-                  </Text>
+                  <Text className="text-lg font-bold my-2">You Might Also Like</Text>
                   {recommendationsLoading ? (
                     <ActivityIndicator animating size="large" />
                   ) : (
                     <FlatList
                       data={recommendations}
-                      keyExtractor={(_, i) => `rec-${i}`}
+                      keyExtractor={(_,i) => `rec-${i}`}
                       horizontal
                       showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={{ marginTop: 16 }}
+                      ItemSeparatorComponent={() => <View className="w-4" />}
                       renderItem={({ item: recItem }) => (
                         <TouchableOpacity onPress={() => handleRecommendationPress(recItem)}>
-                          <View style={{ width: 120, marginRight: 16 }}>
-                            {recItem?.thumbnail?.path && recItem?.thumbnail?.extension ? (
+                          <View className="w-32 mr-4">
+                            {recItem.thumbnail?.path && recItem.thumbnail?.extension ? (
                               <Image
                                 source={{ uri: getSecureImageUrl(recItem.thumbnail) }}
-                                style={{ width: '100%', height: 100, borderRadius: 8 }}
+                                className="w-full h-24 rounded-lg"
                                 resizeMode="cover"
                               />
-                            ) : recItem?.poster_path ? (
+                            ) : recItem.poster_path ? (
                               <Image
                                 source={{ uri: `https://image.tmdb.org/t/p/original${recItem.poster_path}` }}
-                                style={{ width: '100%', height: 100, borderRadius: 8 }}
+                                className="w-full h-24 rounded-lg"
                                 resizeMode="cover"
                               />
                             ) : (
-                              <View
-                                style={{
-                                  width: '100%',
-                                  height: 100,
-                                  borderRadius: 8,
-                                  backgroundColor: '#ccc',
-                                  justifyContent: 'center',
-                                  alignItems: 'center'
-                                }}
-                              >
+                              <View className="w-full h-24 bg-gray-300 rounded-lg items-center justify-center">
                                 <Text>No Image</Text>
                               </View>
                             )}
-                            <Text style={{ marginTop: 4, textAlign: 'center' }}>
+                            <Text className="mt-1 text-center">
                               {recItem.title || recItem.name}
                             </Text>
                           </View>
@@ -2362,9 +411,9 @@ export default function Search() {
                 </ScrollView>
               )}
             </Dialog.Content>
-            <Dialog.Actions style={{ paddingBottom: 20 }}>
+            <Dialog.Actions className="pb-4">
               <Button onPress={closeDetailsModal}>
-                <Text style={{ fontSize: 15 }}>Close</Text>
+                <Text className="text-base">Close</Text>
               </Button>
             </Dialog.Actions>
           </Dialog>

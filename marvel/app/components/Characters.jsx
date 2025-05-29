@@ -6,7 +6,6 @@ import {
   ScrollView,
   Image,
   TouchableOpacity,
-  StyleSheet,
 } from "react-native";
 import axios from "axios";
 import { Button, Dialog, Portal, ActivityIndicator } from "react-native-paper";
@@ -38,9 +37,7 @@ export default function Characters() {
     (async () => {
       try {
         const { data } = await axios.get(
-          // "https://hero.boltluna.io/api/characters"
           `${process.env.EXPO_PUBLIC_BASE_URL}/characters`
-
         );
         setCharacters(data);
       } catch (err) {
@@ -94,11 +91,12 @@ export default function Characters() {
   };
 
   return (
-    <View style={{ padding: 16, flex: 1 }}>
+    <View className="p-4 flex-1">
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>
-          Discover <Text style={styles.titleBold}>Characters</Text>
+      <View className="flex-row justify-between items-center">
+        <Text className="text-2xl font-semibold text-gray-600">
+          Discover{" "}
+          <Text className="font-bold text-black">Characters</Text>
         </Text>
         <Button mode="contained" onPress={toggleView}>
           {showAll ? "View Less" : "View All"}
@@ -112,7 +110,7 @@ export default function Characters() {
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 16, marginTop: 16 }}
-        ItemSeparatorComponent={() => <View style={{ width: 16 }} />}
+        ItemSeparatorComponent={() => <View className="w-4" />}
         renderItem={({ item }) => (
           <CharacterCard
             item={item}
@@ -127,12 +125,10 @@ export default function Characters() {
       <Portal>
         <Dialog visible={open} onDismiss={handleClose}>
           {/* Modal header with heart */}
-          <View style={styles.modalHeader}>
+          <View className="flex-row justify-between items-center px-4 pt-4">
             <Dialog.Title>{selectedCharacter?.name}</Dialog.Title>
             {selectedCharacter && (
-              <TouchableOpacity
-                onPress={() => toggleSaveItem(selectedCharacter)}
-              >
+              <TouchableOpacity onPress={() => toggleSaveItem(selectedCharacter)}>
                 {isCharacterSaved(selectedCharacter.id) ? (
                   <FontAwesome name="heart" size={24} color="red" />
                 ) : (
@@ -149,13 +145,16 @@ export default function Characters() {
                   source={{
                     uri: getSecureImageUrl(selectedCharacter.thumbnail),
                   }}
-                  style={styles.modalImage}
+                  className="w-full aspect-square rounded-lg mb-2"
                   resizeMode="contain"
                 />
-                <Text style={styles.description}>
-                  {selectedCharacter.description || "No description available"}
+                <Text className="my-2">
+                  {selectedCharacter.description ||
+                    "No description available"}
                 </Text>
-                <Text style={styles.recommendHeader}>You Might Also Like</Text>
+                <Text className="text-lg font-bold my-2">
+                  You Might Also Like
+                </Text>
                 {recommendationsLoading ? (
                   <ActivityIndicator />
                 ) : (
@@ -187,42 +186,3 @@ export default function Characters() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "600",
-    color: "#4A5568",
-  },
-  titleBold: {
-    fontWeight: "700",
-    color: "#000",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingTop: 16,
-  },
-  modalImage: {
-    width: "100%",
-    height: undefined,
-    aspectRatio: 1,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  description: {
-    marginVertical: 8,
-  },
-  recommendHeader: {
-    fontSize: 18,
-    fontWeight: "700",
-    marginVertical: 8,
-  },
-});
