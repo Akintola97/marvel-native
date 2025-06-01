@@ -3,9 +3,11 @@ import { View, Text, Image, TouchableOpacity } from "react-native";
 import { FontAwesome } from "@expo/vector-icons";
 import { TapGestureHandler } from "react-native-gesture-handler";
 
-// Helper to force HTTPS on thumbnails
+const localPlaceholder = require("../../assets/images/placeholder.png");
+
+// Helper to force HTTPS on thumbnails; returns null when no thumbnail
 const getSecureImageUrl = (thumbnail) => {
-  if (!thumbnail) return "";
+  if (!thumbnail) return null;
   const path = thumbnail.path.startsWith("http:")
     ? thumbnail.path.replace("http:", "https:")
     : thumbnail.path;
@@ -15,7 +17,12 @@ const getSecureImageUrl = (thumbnail) => {
 export default function CharacterCard({ item, onOpen, onToggleSave, isSaved }) {
   const singleTapRef = useRef();
   const doubleTapRef = useRef();
-  const uri = getSecureImageUrl(item.thumbnail);
+
+  // Try to build a remote URI; fall back to null if no thumbnail
+  const remoteUri = getSecureImageUrl(item.thumbnail);
+
+  // If remoteUri exists, use { uri: remoteUri }, otherwise use the local placeholder
+  const imageSource = remoteUri ? { uri: remoteUri } : localPlaceholder;
 
   return (
     <View className="w-40 mr-4">
@@ -33,9 +40,9 @@ export default function CharacterCard({ item, onOpen, onToggleSave, isSaved }) {
             onActivated={() => onOpen(item)}
           >
             <View className="flex-1">
-              {/* Explicit sizing in case Tailwind classes don’t apply */}
+              {/* Render either the TMDB image or your local placeholder */}
               <Image
-                source={{ uri }}
+                source={imageSource}
                 style={{ width: "100%", height: "100%" }}
                 resizeMode="cover"
               />
@@ -43,7 +50,7 @@ export default function CharacterCard({ item, onOpen, onToggleSave, isSaved }) {
           </TapGestureHandler>
         </TapGestureHandler>
 
-        {/* Heart icon with its own semi‑transparent backdrop */}
+        {/* Heart icon with semi‑transparent backdrop */}
         <TouchableOpacity
           onPress={() => onToggleSave(item)}
           className="absolute top-2 right-2 z-10"

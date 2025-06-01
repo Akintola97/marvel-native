@@ -3,20 +3,25 @@ import { View, Text, Image, TouchableOpacity } from "react-native";
 import { FontAwesome } from "@expo/vector-icons";
 import { TapGestureHandler } from "react-native-gesture-handler";
 
+const heroImage = require("../../assets/images/placeholder.png");
+
 export default function EntertainmentCard({
   item,
   onOpen,
   onToggleSave,
-  isSaved
+  isSaved,
 }) {
   const singleTapRef = useRef();
   const doubleTapRef = useRef();
-  const uri = `https://image.tmdb.org/t/p/original${item.poster_path}`;
+
+  // Only build this URI if poster_path is non-null/non-empty
+  const uri = item.poster_path
+    ? `https://image.tmdb.org/t/p/original${item.poster_path}`
+    : null;
 
   return (
     <View className="w-40 mr-4 pb-10">
       <View className="relative w-full h-60 rounded-lg overflow-hidden mb-2">
-        {/* Double‑tap to save, single‑tap to open */}
         <TapGestureHandler
           ref={doubleTapRef}
           numberOfTaps={2}
@@ -29,34 +34,41 @@ export default function EntertainmentCard({
             onActivated={() => onOpen(item)}
           >
             <View className="flex-1">
-              {/* Fallback to explicit sizing in case Tailwind classes don’t apply */}
-              <Image
-                source={{ uri }}
-                style={{ width: "100%", height: "100%" }}
-                resizeMode="cover"
-              />
+              {uri ? (
+                <Image
+                  source={{ uri }}
+                  className="w-full h-full"
+                  resizeMode="cover"
+                />
+              ) : (
+                // use the local placeholder when uri is null
+                <Image
+                  source={heroImage}
+                  className="w-full h-full"
+                  resizeMode="cover"
+                />
+              )}
             </View>
           </TapGestureHandler>
         </TapGestureHandler>
-
-        {/* Heart icon with its own semi‑transparent backdrop */}
-        <TouchableOpacity
-          onPress={() => onToggleSave(item)}
-          className="absolute top-2 right-2 z-10"
-        >
-          <View className="bg-black bg-opacity-50 rounded-full p-1">
-            {isSaved(item.id) ? (
-              <FontAwesome name="heart" size={20} color="white" />
-            ) : (
-              <FontAwesome name="heart-o" size={20} color="white" />
-            )}
-          </View>
-        </TouchableOpacity>
       </View>
 
-      <Text className="text-center font-semibold text-gray-800">
-        {item.title || item.name}
-      </Text>
+      {/* Title and save icon */}
+      <TouchableOpacity onPress={() => onOpen(item)}>
+        <Text
+          className="text-sm font-medium text-gray-700 mb-1"
+          numberOfLines={1}
+        >
+          {item.title || item.name}
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={() => onToggleSave(item)}>
+        <FontAwesome
+          name={isSaved(item.id) ? "heart" : "heart-o"}
+          size={20}
+          color="red"
+        />
+      </TouchableOpacity>
     </View>
   );
 }
